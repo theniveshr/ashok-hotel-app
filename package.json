@@ -1,0 +1,57 @@
+{
+  "name": "ashok-raj-lodge-restaurant",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "npm@10.8.2",
+  "description": "Ashok Raj Lodge & Restaurant — Production Hospitality Platform",
+  "workspaces": [
+    "backend/*",
+    "frontend/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "clean": "turbo run clean && rimraf node_modules",
+    "db:migrate": "cd backend/api && npx prisma migrate dev",
+    "db:generate": "cd backend/api && npx prisma generate",
+    "db:seed": "cd backend/api && npx prisma db seed",
+    "db:studio": "cd backend/api && npx prisma studio",
+    "db:reset": "cd backend/api && npx prisma migrate reset",
+    "mobile": "npm --workspace @ashok-raj/mobile run start",
+    "mobile:android": "npm --workspace @ashok-raj/mobile run android",
+    "mobile:ios": "npm --workspace @ashok-raj/mobile run ios",
+    "mobile:typecheck": "npm --workspace @ashok-raj/mobile run typecheck",
+    "api": "npm --workspace @ashok-raj/api run dev",
+    "admin": "npm --workspace @ashok-raj/admin run dev",
+    "typecheck:api": "npm --workspace @ashok-raj/api run typecheck",
+    "typecheck:admin": "npm --workspace @ashok-raj/admin run typecheck"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.19.1",
+    "@typescript-eslint/parser": "^8.19.1",
+    "caniuse-lite": "^1.0.30001809",
+    "eslint": "^9.18.0",
+    "metro": "^0.83.1",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "dependencies": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native-web": "^0.21.0"
+  }
+}

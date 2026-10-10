@@ -1,0 +1,16 @@
+npm install
+
+#in root
+npm run db:generate
+
+npm run api
+
+
+#keep running
+
+# in frontend
+cd frontend/mobile
+npx expo start --offline -c
+
+# Or if on a different Wi-Fi / Hotspot:
+# npx expo start --tunnel -c

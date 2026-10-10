@@ -1,0 +1,1127 @@
+// =============================================================================
+// Ashok Raj Lodge & Restaurant — Prisma Schema
+// PostgreSQL database with complete schema for all 24 phases.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// USERS & AUTHENTICATION
+// =============================================================================
+
+model User {
+  id                String    @id @default(uuid())
+  name              String    @db.VarChar(100)
+  phone             String    @unique @db.VarChar(15)
+  email             String?   @unique @db.VarChar(255)
+  avatarUrl         String?
+  isVerified        Boolean   @default(false)
+  isActive          Boolean   @default(true)
+  preferredLanguage Language  @default(en)
+  fcmToken          String?   // Firebase Cloud Messaging token
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  // Relations
+  roles             UserRole[]
+  addresses         Address[]
+  orders            Order[]
+  bookings          Booking[]
+  loyaltyAccount    LoyaltyAccount?
+  reviews           Review[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]    @relation("AuditActor")
+  deliveryPartner   DeliveryPartner?
+  otps              OtpVerification[]
+  refreshTokens     RefreshToken[]
+
+  @@index([phone])
+  @@index([email])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model OtpVerification {
+  id        String   @id @default(uuid())
+  userId    String?
+  phone     String   @db.VarChar(15)
+  otp       String   @db.VarChar(6)
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([phone, isUsed])
+  @@index([expiresAt])
+  @@map("otp_verifications")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  isRevoked Boolean  @default(false)
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        RoleName @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id         String    @id @default(uuid())
+  userId     String
+  roleId     String
+  branchId   String?
+  assignedAt DateTime  @default(now())
+  assignedBy String?
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role    @relation(fields: [roleId], references: [id])
+  branch Branch? @relation(fields: [branchId], references: [id])
+
+  @@unique([userId, roleId, branchId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model Address {
+  id        String   @id @default(uuid())
+  userId    String
+  label     String   @db.VarChar(50)
+  line1     String   @db.VarChar(200)
+  line2     String?  @db.VarChar(200)
+  city      String   @db.VarChar(100)
+  state     String   @db.VarChar(100)
+  pincode   String   @db.VarChar(10)
+  lat       Decimal? @db.Decimal(10, 8)
+  lng       Decimal? @db.Decimal(11, 8)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries Delivery[]
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// =============================================================================
+// BRANCHES
+// =============================================================================
+
+model Branch {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(100)
+  nameTa      String   @db.VarChar(100)
+  phone       String   @db.VarChar(15)
+  address     String
+  city        String   @db.VarChar(100)
+  state       String   @db.VarChar(100)
+  pincode     String   @db.VarChar(10)
+  lat         Decimal? @db.Decimal(10, 8)
+  lng         Decimal? @db.Decimal(11, 8)
+  isActive    Boolean  @default(true)
+  isMainBranch Boolean @default(false)
+  gstin       String?  @db.VarChar(20)
+  fssaiNo     String?  @db.VarChar(20)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userRoles         UserRole[]
+  tables            Table[]
+  menuCategories    MenuCategory[]
+  orders            Order[]
+  rooms             Room[]
+  deliveries        Delivery[]
+  deliveryZones     DeliveryZone[]
+  housekeepingTasks HousekeepingTask[]
+  settings          Setting[]
+
+  @@map("branches")
+}
+
+// =============================================================================
+// RESTAURANT — TABLES
+// =============================================================================
+
+model Table {
+  id           String      @id @default(uuid())
+  branchId     String
+  tableNumber  String      @db.VarChar(10)
+  floor        Int         @default(1)
+  capacity     Int         @default(4)
+  status       TableStatus @default(AVAILABLE)
+  qrCode       String?     @unique // QR code identifier for dine-in ordering
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  branch       Branch        @relation(fields: [branchId], references: [id])
+  sessions     TableSession[]
+  orders       Order[]
+
+  @@unique([branchId, tableNumber])
+  @@index([branchId, status])
+  @@map("tables")
+}
+
+model TableSession {
+  id          String    @id @default(uuid())
+  tableId     String
+  openedAt    DateTime  @default(now())
+  closedAt    DateTime?
+  guestCount  Int       @default(1)
+  hostUserId  String?
+  notes       String?
+
+  table  Table   @relation(fields: [tableId], references: [id])
+  orders Order[]
+
+  @@index([tableId, closedAt])
+  @@map("table_sessions")
+}
+
+// =============================================================================
+// RESTAURANT — MENU
+// =============================================================================
+
+model MenuCategory {
+  id            String    @id @default(uuid())
+  branchId      String?   // null = global category
+  name          String    @db.VarChar(100)
+  nameTa        String    @db.VarChar(100)
+  description   String?
+  descriptionTa String?
+  imageUrl      String?
+  displayOrder  Int       @default(0)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  branch    Branch?    @relation(fields: [branchId], references: [id])
+  menuItems MenuItem[]
+
+  @@index([branchId, isActive])
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id                     String    @id @default(uuid())
+  categoryId             String
+  name                   String    @db.VarChar(150)
+  nameTa                 String    @db.VarChar(150)
+  description            String?
+  descriptionTa          String?
+  price                  Decimal   @db.Decimal(10, 2)
+  discountPercentage     Int       @default(0)
+  imageUrl               String?
+  isVegetarian           Boolean   @default(false)
+  isVegan                Boolean   @default(false)
+  isGlutenFree           Boolean   @default(false)
+  isSpicy                Boolean   @default(false)
+  isBestseller           Boolean   @default(false)
+  isFeatured             Boolean   @default(false)
+  preparationTimeMinutes Int       @default(20)
+  isAvailable            Boolean   @default(true)
+  displayOrder           Int       @default(0)
+  calories               Int?
+  rating                 Decimal   @default(4.8) @db.Decimal(3, 2)
+  reviewCount            Int       @default(42)
+  ingredients            String[]
+  allergens              String[]
+  tags                   String[]
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  deletedAt              DateTime?
+
+  category   MenuCategory     @relation(fields: [categoryId], references: [id])
+  addons     MenuItemAddon[]
+  orderItems OrderItem[]
+  reviews    MenuItemReview[]
+
+  @@index([categoryId, isAvailable])
+  @@index([deletedAt])
+  @@map("menu_items")
+}
+
+model MenuItemAddon {
+  id         String   @id @default(uuid())
+  menuItemId String
+  name       String   @db.VarChar(100)
+  nameTa     String   @db.VarChar(100)
+  price      Decimal  @db.Decimal(10, 2)
+  isRequired Boolean  @default(false)
+  maxSelect  Int      @default(1)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  menuItem        MenuItem         @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  orderItemAddons OrderItemAddon[]
+
+  @@index([menuItemId])
+  @@map("menu_item_addons")
+}
+
+model MenuItemReview {
+  id         String   @id @default(uuid())
+  menuItemId String
+  userId     String?
+  userName   String   @db.VarChar(100)
+  rating     Int      @default(5)
+  comment    String?
+  commentTa  String?
+  createdAt  DateTime @default(now())
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@index([menuItemId])
+  @@map("menu_item_reviews")
+}
+
+// =============================================================================
+// ORDERS
+// =============================================================================
+
+model Order {
+  id                 String      @id @default(uuid())
+  orderNumber        String      @unique
+  type               OrderType
+  status             OrderStatus @default(PENDING)
+  userId             String
+  branchId           String
+  tableId            String?
+  tableSessionId     String?
+  deliveryAddressId  String?
+  roomId             String?
+  subtotal           Decimal     @db.Decimal(10, 2)
+  taxAmount          Decimal     @db.Decimal(10, 2)
+  discountAmount     Decimal     @db.Decimal(10, 2) @default(0)
+  total              Decimal     @db.Decimal(10, 2)
+  paymentStatus      PaymentStatus @default(PENDING)
+  couponId           String?
+  notes              String?
+  scheduledAt        DateTime?
+  estimatedReadyAt   DateTime?
+  readyAt            DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  // Relations
+  user              User               @relation(fields: [userId], references: [id])
+  branch            Branch             @relation(fields: [branchId], references: [id])
+  table             Table?             @relation(fields: [tableId], references: [id])
+  tableSession      TableSession?      @relation(fields: [tableSessionId], references: [id])
+  room              Room?              @relation(fields: [roomId], references: [id])
+  coupon            Coupon?            @relation(fields: [couponId], references: [id])
+  items             OrderItem[]
+  statusHistory     OrderStatusHistory[]
+  payments          Payment[]
+  delivery          Delivery?
+  reviews           Review[]
+
+  @@index([userId])
+  @@index([branchId, status])
+  @@index([orderNumber])
+  @@index([createdAt])
+  @@index([tableId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String  @id @default(uuid())
+  orderId     String
+  menuItemId  String
+  name        String  @db.VarChar(150)
+  price       Decimal @db.Decimal(10, 2)
+  quantity    Int
+  subtotal    Decimal @db.Decimal(10, 2)
+  note        String?
+  status      OrderItemStatus @default(PENDING)
+
+  order    Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem         @relation(fields: [menuItemId], references: [id])
+  addons   OrderItemAddon[]
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model OrderItemAddon {
+  id          String  @id @default(uuid())
+  orderItemId String
+  addonId     String
+  name        String  @db.VarChar(100) // Snapshot
+  price       Decimal @db.Decimal(10, 2) // Snapshot
+
+  orderItem OrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  addon     MenuItemAddon @relation(fields: [addonId], references: [id])
+
+  @@map("order_item_addons")
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid())
+  orderId   String
+  status    OrderStatus
+  note      String?
+  changedBy String?     // userId of staff member
+  createdAt DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_status_history")
+}
+
+// =============================================================================
+// PAYMENTS & INVOICES
+// =============================================================================
+
+model Payment {
+  id                 String        @id @default(uuid())
+  referenceId        String        // orderId or bookingId
+  referenceType      PaymentRefType
+  amount             Decimal       @db.Decimal(10, 2)
+  method             PaymentMethod
+  status             PaymentStatus @default(PENDING)
+  razorpayOrderId    String?       @unique
+  razorpayPaymentId  String?       @unique
+  razorpaySignature  String?
+  transactionRef     String?
+  failureReason      String?
+  paidAt             DateTime?
+  refundedAt         DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  order   Order?   @relation(fields: [referenceId], references: [id], map: "fk_payment_order")
+  invoice Invoice?
+
+  @@index([referenceId])
+  @@index([razorpayOrderId])
+  @@map("payments")
+}
+
+model Invoice {
+  id            String   @id @default(uuid())
+  invoiceNumber String   @unique
+  paymentId     String   @unique
+  userId        String
+  items         Json     // Snapshot of line items
+  subtotal      Decimal  @db.Decimal(10, 2)
+  taxAmount     Decimal  @db.Decimal(10, 2)
+  discountAmount Decimal @db.Decimal(10, 2) @default(0)
+  total         Decimal  @db.Decimal(10, 2)
+  taxDetails    Json?    // GST breakdown
+  pdfUrl        String?
+  createdAt     DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+
+  @@map("invoices")
+}
+
+// =============================================================================
+// DELIVERY
+// =============================================================================
+
+model DeliveryZone {
+  id                      String   @id @default(uuid())
+  branchId                String
+  name                    String   @db.VarChar(100)
+  nameTa                  String   @db.VarChar(100)
+  baseFee                 Decimal  @db.Decimal(10, 2) @default(30.00)
+  minOrderAmount          Decimal  @db.Decimal(10, 2) @default(100.00)
+  freeDeliveryThreshold   Decimal  @db.Decimal(10, 2) @default(300.00)
+  estimatedDeliveryMinutes Int     @default(30)
+  radiusKm                Decimal  @db.Decimal(5, 2) @default(5.00)
+  pincodes                String[]
+  isActive                Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  branch     Branch     @relation(fields: [branchId], references: [id])
+  deliveries Delivery[]
+
+  @@index([branchId, isActive])
+  @@map("delivery_zones")
+}
+
+model DeliveryPartner {
+  id           String                @id @default(uuid())
+  userId       String                @unique
+  vehicleType  VehicleType           @default(BIKE)
+  vehicleNumber String?              @db.VarChar(20)
+  isOnline     Boolean               @default(false)
+  isVerified   Boolean               @default(false)
+  currentLat   Decimal?              @db.Decimal(10, 8)
+  currentLng   Decimal?              @db.Decimal(11, 8)
+  rating       Decimal               @db.Decimal(3, 2) @default(5.00)
+  totalDeliveries Int                @default(0)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id])
+  deliveries Delivery[]
+
+  @@map("delivery_partners")
+}
+
+model Delivery {
+  id                    String         @id @default(uuid())
+  orderId               String         @unique
+  partnerId             String?
+  deliveryAddressId     String?
+  zoneId                String?
+  status                DeliveryStatus @default(PENDING)
+  estimatedDeliveryAt   DateTime?
+  actualDeliveryAt      DateTime?
+  distanceKm            Decimal?       @db.Decimal(6, 2)
+  deliveryFee           Decimal        @db.Decimal(10, 2) @default(0)
+  assignedAt            DateTime?
+  pickedUpAt            DateTime?
+  otp                   String?        @db.VarChar(6) // Delivery OTP
+  cancellationReason    String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  order          Order           @relation(fields: [orderId], references: [id])
+  partner        DeliveryPartner? @relation(fields: [partnerId], references: [id])
+  deliveryAddress Address?       @relation(fields: [deliveryAddressId], references: [id])
+  zone           DeliveryZone?   @relation(fields: [zoneId], references: [id])
+  branch         Branch?         @relation(fields: [orderId], references: [id], map: "fk_delivery_branch")
+  statusHistory  DeliveryStatusHistory[]
+
+  @@index([partnerId, status])
+  @@index([zoneId])
+  @@map("deliveries")
+}
+
+model DeliveryStatusHistory {
+  id         String         @id @default(uuid())
+  deliveryId String
+  status     DeliveryStatus
+  lat        Decimal?       @db.Decimal(10, 8)
+  lng        Decimal?       @db.Decimal(11, 8)
+  note       String?
+  createdAt  DateTime       @default(now())
+
+  delivery Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryId])
+  @@map("delivery_status_history")
+}
+
+// =============================================================================
+// LODGE — ROOM TYPES
+// =============================================================================
+
+model RoomType {
+  id             String   @id @default(uuid())
+  name           String   @db.VarChar(100)
+  nameTa         String   @db.VarChar(100)
+  description    String
+  descriptionTa  String
+  basePrice      Decimal  @db.Decimal(10, 2)
+  weekendPrice   Decimal? @db.Decimal(10, 2)
+  maxOccupancy   Int      @default(2)
+  bedType        String   @db.VarChar(50)  // "King", "Twin", "Double"
+  sizeSqFt       Int?     @default(240)
+  imageUrls      String[]
+  amenities      String[]
+  amenitiesTa    String[]
+  isActive       Boolean  @default(true)
+  displayOrder   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  rooms    Room[]
+  photos   RoomPhoto[]
+  reviews  Review[]
+
+  @@map("room_types")
+}
+
+model RoomPhoto {
+  id           String   @id @default(uuid())
+  roomTypeId   String
+  url          String
+  caption      String?
+  captionTa    String?
+  isPrimary    Boolean  @default(false)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  roomType RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  @@index([roomTypeId])
+  @@map("room_photos")
+}
+
+model Amenity {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(100)
+  nameTa    String   @db.VarChar(100)
+  icon      String   @db.VarChar(50)
+  category  String   @db.VarChar(50) @default("ROOM") // ROOM, BATHROOM, MEDIA, SERVICE
+  isPaid    Boolean  @default(false)
+  price     Decimal  @db.Decimal(10, 2) @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("amenities")
+}
+
+model Room {
+  id               String     @id @default(uuid())
+  branchId         String
+  roomNumber       String     @db.VarChar(10)
+  floor            Int        @default(1)
+  typeId           String
+  status           RoomStatus @default(AVAILABLE)
+  currentBookingId String?
+  notes            String?
+  lastCleanedAt    DateTime?
+  lastInspectedAt  DateTime?
+  isActive         Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  branch   Branch    @relation(fields: [branchId], references: [id])
+  type     RoomType  @relation(fields: [typeId], references: [id])
+  bookings Booking[]
+  roomServiceOrders Order[]
+  housekeepingTasks HousekeepingTask[]
+  maintenanceLogs   RoomMaintenance[]
+
+  @@unique([branchId, roomNumber])
+  @@index([branchId, status])
+  @@map("rooms")
+}
+
+model RoomMaintenance {
+  id          String       @id @default(uuid())
+  roomId      String
+  type        String       @db.VarChar(50) // PLUMBING, ELECTRICAL, AC, CARPENTRY, GENERAL
+  issue       String
+  issueTa     String?
+  priority    TaskPriority @default(NORMAL)
+  status      String       @default("REPORTED") // REPORTED, IN_PROGRESS, RESOLVED, CANCELLED
+  cost        Decimal?     @db.Decimal(10, 2)
+  reportedBy  String?
+  assignedTo  String?
+  notes       String?
+  startedAt   DateTime?
+  resolvedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, status])
+  @@map("room_maintenances")
+}
+
+model LodgePolicy {
+  id                    String   @id @default(uuid())
+  branchId              String   @unique
+  checkInTime           String   @default("14:00")
+  checkOutTime          String   @default("11:00")
+  cancellationPolicy    String
+  cancellationPolicyTa  String
+  childPolicy           String
+  childPolicyTa         String
+  idProofRequired       Boolean  @default(true)
+  smokingAllowed        Boolean  @default(false)
+  petsAllowed           Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("lodge_policies")
+}
+
+// =============================================================================
+// LODGE — BOOKINGS
+// =============================================================================
+
+model Booking {
+  id               String        @id @default(uuid())
+  bookingNumber    String        @unique
+  userId           String
+  roomId           String
+  checkIn          DateTime      @db.Date
+  checkOut         DateTime      @db.Date
+  status           BookingStatus @default(PENDING)
+  adultsCount      Int           @default(1)
+  childrenCount    Int           @default(0)
+  subtotal         Decimal       @db.Decimal(10, 2)
+  taxAmount        Decimal       @db.Decimal(10, 2)
+  discountAmount   Decimal       @db.Decimal(10, 2) @default(0)
+  totalAmount      Decimal       @db.Decimal(10, 2)
+  paymentStatus    PaymentStatus @default(PENDING)
+  couponId         String?
+  specialRequests  String?
+  extras           Json          @default("[]")        // [{name,nameTa,price}]
+  advancePaid      Decimal       @db.Decimal(10, 2) @default(0)
+  modifiedBy       String?                             // staff userId
+  checkedInAt      DateTime?
+  checkedOutAt     DateTime?
+  cancellationReason String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  // Relations
+  user          User                  @relation(fields: [userId], references: [id])
+  room          Room                  @relation(fields: [roomId], references: [id])
+  coupon        Coupon?               @relation(fields: [couponId], references: [id])
+  guests        BookingGuest[]
+  statusHistory BookingStatusHistory[]
+  reviews       Review[]
+
+  @@index([userId])
+  @@index([roomId, checkIn, checkOut])
+  @@index([status])
+  @@index([checkIn])
+  @@index([checkOut])
+  @@map("bookings")
+}
+
+model BookingGuest {
+  id           String   @id @default(uuid())
+  bookingId    String
+  name         String   @db.VarChar(100)
+  phone        String?  @db.VarChar(15)
+  idType       String?  @db.VarChar(30)  // Aadhaar, PAN, Passport
+  idNumber     String?  @db.VarChar(50)
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("booking_guests")
+}
+
+model BookingStatusHistory {
+  id        String        @id @default(uuid())
+  bookingId String
+  status    BookingStatus
+  note      String?
+  changedBy String?
+  createdAt DateTime      @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("booking_status_history")
+}
+
+// =============================================================================
+// COUPONS & OFFERS
+// =============================================================================
+
+model Coupon {
+  id               String      @id @default(uuid())
+  code             String      @unique @db.VarChar(30)
+  description      String
+  descriptionTa    String
+  type             CouponType
+  discountValue    Decimal     @db.Decimal(10, 2)
+  minOrderAmount   Decimal?    @db.Decimal(10, 2)
+  maxDiscountAmount Decimal?   @db.Decimal(10, 2)
+  applicableTo     CouponScope
+  maxUses          Int?
+  usedCount        Int         @default(0)
+  maxUsesPerUser   Int         @default(1)
+  validFrom        DateTime
+  validUntil       DateTime
+  isActive         Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  orders   Order[]
+  bookings Booking[]
+
+  @@index([code, isActive])
+  @@index([validUntil])
+  @@map("coupons")
+}
+
+// =============================================================================
+// LOYALTY
+// =============================================================================
+
+model LoyaltyAccount {
+  id             String       @id @default(uuid())
+  userId         String       @unique
+  points         Int          @default(0)
+  tier           LoyaltyTier  @default(BRONZE)
+  totalEarned    Int          @default(0)
+  totalRedeemed  Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user         User                 @relation(fields: [userId], references: [id])
+  transactions LoyaltyTransaction[]
+
+  @@map("loyalty_accounts")
+}
+
+model LoyaltyTransaction {
+  id               String                  @id @default(uuid())
+  accountId        String
+  type             LoyaltyTransactionType
+  points           Int
+  referenceId      String?
+  referenceType    String?
+  description      String
+  descriptionTa    String
+  expiresAt        DateTime?
+  createdAt        DateTime                @default(now())
+
+  account LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("loyalty_transactions")
+}
+
+// =============================================================================
+// REVIEWS
+// =============================================================================
+
+model Review {
+  id            String      @id @default(uuid())
+  userId        String
+  referenceId   String
+  referenceType ReviewRefType
+  rating        Int         // 1-5
+  comment       String?
+  isPublished   Boolean     @default(true)
+  isVerified    Boolean     @default(false)
+  orderId       String?
+  bookingId     String?
+  roomTypeId    String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?
+
+  user     User      @relation(fields: [userId], references: [id])
+  order    Order?    @relation(fields: [orderId], references: [id])
+  booking  Booking?  @relation(fields: [bookingId], references: [id])
+  roomType RoomType? @relation(fields: [roomTypeId], references: [id])
+
+  @@index([referenceId, referenceType])
+  @@index([userId])
+  @@map("reviews")
+}
+
+// =============================================================================
+// NOTIFICATIONS
+// =============================================================================
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String           @db.VarChar(200)
+  titleTa   String           @db.VarChar(200)
+  body      String
+  bodyTa    String
+  isRead    Boolean          @default(false)
+  data      Json             @default("{}")
+  sentAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// =============================================================================
+// HOUSEKEEPING
+// =============================================================================
+
+model HousekeepingTask {
+  id           String              @id @default(uuid())
+  branchId     String
+  roomId       String
+  type         HousekeepingType
+  status       HousekeepingStatus  @default(PENDING)
+  priority     TaskPriority        @default(NORMAL)
+  assignedTo   String?
+  scheduledAt  DateTime
+  startedAt    DateTime?
+  completedAt  DateTime?
+  notes        String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id])
+  room   Room   @relation(fields: [roomId], references: [id])
+
+  @@index([branchId, status])
+  @@index([roomId])
+  @@index([assignedTo])
+  @@map("housekeeping_tasks")
+}
+
+// =============================================================================
+// AUDIT LOGS
+// =============================================================================
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String?
+  action      String   @db.VarChar(100)
+  resource    String   @db.VarChar(100)
+  resourceId  String?
+  before      Json?
+  after       Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// =============================================================================
+// SETTINGS
+// =============================================================================
+
+model Setting {
+  id        String   @id @default(uuid())
+  branchId  String?
+  key       String
+  value     String
+  group     String   @default("general")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch Branch? @relation(fields: [branchId], references: [id])
+
+  @@unique([branchId, key])
+  @@index([branchId, group])
+  @@map("settings")
+}
+
+// =============================================================================
+// ENUMERATIONS
+// =============================================================================
+
+enum Language {
+  en
+  ta
+}
+
+enum RoleName {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  RECEPTIONIST
+  WAITER
+  KITCHEN_STAFF
+  HOUSEKEEPER
+  DELIVERY_PARTNER
+  CUSTOMER
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  HOME_DELIVERY
+  ROOM_SERVICE
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  PICKED_UP
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum OrderItemStatus {
+  PENDING
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  REFUNDED
+  FAILED
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  RAZORPAY
+  LOYALTY_POINTS
+  COUPON
+  MIXED
+}
+
+enum PaymentRefType {
+  ORDER
+  BOOKING
+}
+
+enum RoomStatus {
+  AVAILABLE
+  RESERVED
+  OCCUPIED
+  CLEANING
+  INSPECTED
+  MAINTENANCE
+  BLOCKED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+enum DeliveryStatus {
+  PENDING
+  ASSIGNED
+  PICKED_UP
+  EN_ROUTE
+  DELIVERED
+  FAILED
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  CLEANING
+}
+
+enum VehicleType {
+  BIKE
+  BICYCLE
+  CAR
+  SCOOTER
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED
+}
+
+enum CouponScope {
+  ORDER
+  BOOKING
+  ALL
+}
+
+enum LoyaltyTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+enum LoyaltyTransactionType {
+  EARN
+  REDEEM
+  EXPIRE
+  BONUS
+  REFUND
+}
+
+enum ReviewRefType {
+  ORDER
+  BOOKING
+  MENU_ITEM
+  ROOM_TYPE
+}
+
+enum NotificationType {
+  ORDER_UPDATE
+  BOOKING_UPDATE
+  PAYMENT_CONFIRMED
+  PROMOTION
+  SYSTEM
+  DELIVERY_UPDATE
+}
+
+enum HousekeepingType {
+  CHECKOUT_CLEAN
+  DAILY_CLEAN
+  TURNDOWN
+  DEEP_CLEAN
+  MAINTENANCE
+  ROOM_SERVICE_DELIVERY
+}
+
+enum HousekeepingStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}

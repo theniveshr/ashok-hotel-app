@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "./dist",
+    "paths": {
+      "@ashok-raj/types": ["../../packages/types/src/index.ts"],
+      "@ashok-raj/validation": ["../../packages/validation/src/index.ts"],
+      "@ashok-raj/config": ["../../packages/config/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}
