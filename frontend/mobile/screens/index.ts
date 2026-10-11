@@ -1,6 +1,7 @@
 export * from './SplashScreen';
 export * from './OnboardingScreen';
 export * from './LoginScreen';
+export * from './RegisterScreen';
 export * from './HomeScreen';
 export * from './RestaurantScreen';
 export * from './FoodDetailScreen';

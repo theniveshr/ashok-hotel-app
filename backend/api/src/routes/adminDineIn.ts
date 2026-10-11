@@ -1,6 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { requireRoles } from '../plugins/authGuard.js';
 
 export const adminDineInRoutes: FastifyPluginAsync = async (app) => {
+  // Enforce ADMIN, SUPER_ADMIN, or MANAGER role for all admin dine-in routes
+  app.addHook('preHandler', requireRoles('ADMIN', 'SUPER_ADMIN', 'MANAGER'));
+
   // In-memory table state
   const tables = [
     { id: 'tbl-1', tableNumber: '01', floor: 1, capacity: 2, status: 'AVAILABLE', isAc: false, qrToken: 'qr_kal_tbl_01' },

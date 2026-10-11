@@ -34,6 +34,8 @@ import { Header } from '../components/ui/Header';
 import { AboutAshokRajModal } from '../components/ui/AboutAshokRajModal';
 import { Radius, Spacing, FontSize, Palette } from '@ashok-raj/ui';
 
+import { useAuthStore } from '../store/useAuthStore';
+
 export interface ProfileScreenProps {
   onNavigateToSettings: () => void;
   onNavigateToLanguage: () => void;
@@ -55,6 +57,8 @@ export function ProfileScreen({
 }: ProfileScreenProps) {
   const { isTamil, language } = useTranslation();
   const [aboutModalVisible, setAboutModalVisible] = useState(false);
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
 
   const handleOpenWebsite = () => {
     Haptics.selectionAsync();
@@ -96,6 +100,31 @@ export function ProfileScreen({
     );
   };
 
+  const handleSignOut = () => {
+    Haptics.selectionAsync();
+    Alert.alert(
+      isTamil ? 'வெளியேறவா?' : 'Confirm Logout',
+      isTamil
+        ? 'உங்கள் கணக்கிலிருந்து வெளியேற விரும்புகிறீர்களா?'
+        : 'Are you sure you want to sign out of your account?',
+      [
+        {
+          text: isTamil ? 'ரத்து' : 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: isTamil ? 'வெளியேறு' : 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            await logout();
+            onSignOut();
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Header
@@ -107,11 +136,20 @@ export function ProfileScreen({
         {/* User Card */}
         <View style={styles.userCard}>
           <View style={styles.avatarWrap}>
-            <Text style={styles.avatarText}>SR</Text>
+            <Text style={styles.avatarText}>
+              {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AR'}
+            </Text>
           </View>
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>Sundar Rajan</Text>
-            <Text style={styles.userPhone}>+91 98765 43210</Text>
+            <Text style={styles.userName}>
+              {user?.name || (isTamil ? 'அசோக் விருந்தினர்' : 'Ashok Guest')}
+            </Text>
+            <Text style={styles.userPhone}>
+              {user?.phone ? `+91 ${user.phone}` : '+91 99999 99999'}
+            </Text>
+            {user?.email ? (
+              <Text style={styles.userEmail}>{user.email}</Text>
+            ) : null}
             <Text style={styles.userLocation}>Kalaiyarkoil, Sivagangai</Text>
           </View>
         </View>
@@ -366,7 +404,7 @@ export function ProfileScreen({
 
         {/* Sign Out Button */}
         <TouchableOpacity
-          onPress={onSignOut}
+          onPress={handleSignOut}
           style={styles.signOutBtn}
           activeOpacity={0.8}
         >
@@ -450,6 +488,11 @@ const styles = StyleSheet.create({
   userPhone: {
     fontSize: 13,
     color: '#475569',
+  },
+  userEmail: {
+    fontSize: 12,
+    color: '#2563EB',
+    fontWeight: '500',
   },
   userLocation: {
     fontSize: 11,

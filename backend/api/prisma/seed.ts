@@ -1,4 +1,9 @@
+import { PrismaClient, RoleName, Language } from '@prisma/client';
+import { BUSINESS } from '@ashok-raj/config';
 
+const prisma = new PrismaClient();
+
+async function main() {
   console.log('🌱 Starting database seed...');
 
   // ── Roles ─────────────────────────────────────────────────────────────────

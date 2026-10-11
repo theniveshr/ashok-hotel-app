@@ -18,6 +18,7 @@ import {
   HomeScreen,
   LanguageScreen,
   LoginScreen,
+  RegisterScreen,
   LodgeScreen,
   MiniHallScreen,
   NotificationsScreen,
@@ -33,12 +34,14 @@ import {
 } from './screens';
 import { useCartStore } from './store/useCartStore';
 import { useHomeStore } from './store/useHomeStore';
+import { useAuthStore } from './store/useAuthStore';
 import { Palette } from '@ashok-raj/ui';
 
 type ActiveScreen =
   | 'splash'
-  | 'onboarding'
+  | 'register'
   | 'login'
+  | 'onboarding'
   | 'tabs'
   | 'restaurant'
   | 'lodge'
@@ -63,13 +66,29 @@ function MainApp() {
   const cartItems = useCartStore((state) => state.items);
   const addItem = useCartStore((state) => state.addItem);
   const homeData = useHomeStore((state) => state.data);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const restoreSession = useAuthStore((state) => state.restoreSession);
+
+  React.useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
 
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>('splash');
   const [activeTab, setActiveTab] = useState<TabKey>('home');
+  const [loginInitialPhone, setLoginInitialPhone] = useState<string>('');
+  const [loginSuccessMessage, setLoginSuccessMessage] = useState<string>('');
   const [selectedFoodId, setSelectedFoodId] = useState<string>('item-ghee-dosa');
   const [selectedRoomId, setSelectedRoomId] = useState<string>('rt-double-ac');
   const [restaurantSegment, setRestaurantSegment] = useState<'restaurant' | 'bakery' | 'veg'>('restaurant');
-  const [returnScreen, setReturnScreen] = useState<'tabs' | 'restaurant' | 'lodge'>('tabs');
+  const [returnScreen, setReturnScreen] = useState<'tabs' | 'restaurant' | 'lodge' | 'register' | 'login'>('tabs');
+
+  // Route protection: Block unauthenticated access to protected screens
+  React.useEffect(() => {
+    const unauthenticatedScreens = ['splash', 'register', 'login', 'onboarding', 'settings', 'language'];
+    if (!isAuthenticated && !unauthenticatedScreens.includes(activeScreen)) {
+      setActiveScreen('register');
+    }
+  }, [isAuthenticated, activeScreen]);
 
   const cartCount = useMemo(() => cartItems.reduce((sum, item) => sum + item.quantity, 0), [cartItems]);
 
@@ -139,7 +158,10 @@ function MainApp() {
             onNavigateToOrders={() => goTabs('orders')}
             onNavigateToBookings={() => goTabs('bookings')}
             onNavigateToOffers={() => goTabs('offers')}
-            onSignOut={() => setActiveScreen('login')}
+            onSignOut={() => {
+              setLoginSuccessMessage('');
+              setActiveScreen('register');
+            }}
           />
         );
       case 'home':
@@ -169,11 +191,56 @@ function MainApp() {
   const renderScreen = () => {
     switch (activeScreen) {
       case 'splash':
-        return <SplashScreen onFinish={() => setActiveScreen('onboarding')} />;
-      case 'onboarding':
-        return <OnboardingScreen onComplete={() => setActiveScreen('login')} />;
+        return (
+          <SplashScreen
+            onFinish={() => {
+              if (useAuthStore.getState().isAuthenticated) {
+                goTabs('home');
+              } else {
+                setActiveScreen('register');
+              }
+            }}
+          />
+        );
+      case 'register':
+        return (
+          <RegisterScreen
+            onNavigateToLogin={() => {
+              setLoginSuccessMessage('');
+              setActiveScreen('login');
+            }}
+            onRegisterSuccess={(phone, message) => {
+              setLoginInitialPhone(phone);
+              setLoginSuccessMessage(message);
+              setActiveScreen('login');
+            }}
+            onOpenSettings={() => {
+              setReturnScreen('register');
+              setActiveScreen('settings');
+            }}
+          />
+        );
       case 'login':
-        return <LoginScreen onLoginSuccess={() => goTabs('home')} />;
+        return (
+          <LoginScreen
+            initialPhone={loginInitialPhone}
+            successMessage={loginSuccessMessage}
+            onNavigateToRegister={() => {
+              setLoginSuccessMessage('');
+              setActiveScreen('register');
+            }}
+            onLoginSuccess={() => {
+              setLoginSuccessMessage('');
+              goTabs('home');
+            }}
+            onOpenSettings={() => {
+              setReturnScreen('login');
+              setActiveScreen('settings');
+            }}
+          />
+        );
+      case 'onboarding':
+        return <OnboardingScreen onComplete={() => setActiveScreen('register')} />;
       case 'restaurant':
         return (
           <RestaurantScreen

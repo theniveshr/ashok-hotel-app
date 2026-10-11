@@ -326,6 +326,68 @@ export const lodgeRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
+  // ── GET /halls — List Mini Halls ──────────────────────────────────────────
+  app.get('/halls', async (_req, reply) => {
+    return reply.send({
+      success: true,
+      data: [
+        {
+          id: 'hall-ashok-raj-mini',
+          name: 'Ashok Raj Mini Hall',
+          nameTa: 'அசோக் ராஜ் மினி ஹால்',
+          capacity: '100 - 150 Guests',
+          basePrice: 7500,
+          cleaningCharge: 1000,
+          isAirConditioned: true,
+          location: 'Kalaiyarkoil, Sivaganga District',
+          facilities: [
+            { en: '100+ Seating Capacity', ta: '100+ இருக்கை வசதி' },
+            { en: 'Fully Air Conditioned', ta: 'முழு குளிரூட்டப்பட்ட அரங்கு' },
+            { en: 'Dining & Catering Area', ta: 'உணவு மற்றும் பஃபே பகுதி' },
+            { en: 'Audio & Sound System', ta: 'நவீன ஒலி அமைப்பு' },
+            { en: 'Ample Parking Space', ta: 'தாராளமான வாகன நிறுத்தம்' },
+            { en: 'Stage & Decoration Support', ta: 'மேடை & அலங்கார உதவி' },
+          ],
+          suitableFor: ['Birthday', 'Engagement', 'Baby Shower', 'Family Gathering', 'Business Meeting'],
+        },
+      ],
+    });
+  });
+
+  // ── POST /hall-enquiries — Submit Mini Hall Reservation Enquiry ────────────
+  app.post('/hall-enquiries', async (req, reply) => {
+    const body = req.body as any;
+    if (!body?.contactName || !body?.contactPhone || !body?.selectedDate || !body?.selectedEvent) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'INVALID_INPUT', message: 'Name, phone, date, and event type are required.' },
+      });
+    }
+
+    const ref = `MH-${Date.now().toString().slice(-6)}`;
+    const enquiry = {
+      id: `enq-${Date.now()}`,
+      referenceNumber: ref,
+      hallId: body.hallId || 'hall-ashok-raj-mini',
+      contactName: body.contactName,
+      contactPhone: body.contactPhone,
+      selectedDate: body.selectedDate,
+      selectedTime: body.selectedTime || 'Morning',
+      selectedEvent: body.selectedEvent,
+      guestsCount: body.guestsCount || 50,
+      specialRequirements: body.specialRequirements || '',
+      status: 'RECEIVED',
+      createdAt: new Date().toISOString(),
+    };
+
+    broadcastLodgeEvent('hall_enquiry_received', enquiry);
+
+    return reply.status(201).send({
+      success: true,
+      data: enquiry,
+    });
+  });
+
   // ═══════════════════════════════════════════════════════════════════════════
   // 2. ADMIN & FRONT-DESK OPERATIONS APIS
   // ═══════════════════════════════════════════════════════════════════════════

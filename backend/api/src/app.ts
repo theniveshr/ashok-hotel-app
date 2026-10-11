@@ -6,6 +6,7 @@ import websocket from '@fastify/websocket';
 import { API } from '@ashok-raj/config';
 
 import { prismaPlugin } from './plugins/prisma.js';
+import { supabasePlugin } from './plugins/supabase.js';
 import { redisPlugin } from './plugins/redis.js';
 import { jwtPlugin } from './plugins/jwt.js';
 import { auditPlugin } from './plugins/audit.js';
@@ -24,6 +25,7 @@ import { deliveryRoutes } from './routes/delivery.js';
 import { lodgeRoutes } from './routes/lodge.js';
 import { bookingRoutes } from './routes/booking.js';
 import { imageProxyRoutes } from './routes/imageProxy.js';
+import { authRoutes } from './routes/auth.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const isDev = process.env['NODE_ENV'] !== 'production';
@@ -68,6 +70,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // ── Plugins ───────────────────────────────────────────────────────────────
   await app.register(prismaPlugin);
+  await app.register(supabasePlugin);
   await app.register(redisPlugin);
   await app.register(jwtPlugin);
   await app.register(auditPlugin);
@@ -158,6 +161,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // ── Routes ─────────────────────────────────────────────────────────────────
   await app.register(healthRoutes, { prefix: '/health' });
+  await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(customerHomeRoutes, { prefix: '/api/v1/customer' });
   await app.register(customerMenuRoutes, { prefix: '/api/v1/customer/menu' });
   await app.register(customerOrderRoutes, { prefix: '/api/v1/customer/orders' });

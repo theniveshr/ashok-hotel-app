@@ -9,6 +9,12 @@ declare module '@fastify/jwt' {
   }
 }
 
+declare module 'fastify' {
+  interface FastifyInstance {
+    authenticate: (request: any, reply: any) => Promise<void>;
+  }
+}
+
 export const jwtPlugin = fp(async (app) => {
   const secret = process.env['JWT_SECRET'];
   const refreshSecret = process.env['JWT_REFRESH_SECRET'];

@@ -30,6 +30,18 @@ import { LODGE, TAX, BUSINESS } from '@ashok-raj/config';
 import { requireRoles } from '../plugins/authGuard.js';
 
 export const bookingRoutes: FastifyPluginAsync = async (app) => {
+  // Extract authenticated user if token is provided
+  app.addHook('preHandler', async (req) => {
+    if (req.headers.authorization) {
+      try {
+        const decoded = await req.jwtVerify<{ userId: string }>();
+        (req as any).user = { ...decoded, id: decoded.userId };
+      } catch {
+        // Continue if unauthenticated guest
+      }
+    }
+  });
+
   // ── In-Memory Stores for Fast Standalone Execution & Fallback ─────────────
   const inMemoryBookings: Map<string, Booking> = new Map();
   const inMemoryRooms: Map<string, Room & { type?: RoomType | undefined }> = new Map();

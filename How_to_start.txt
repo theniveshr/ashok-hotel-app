@@ -1,16 +1,65 @@
+=============================================================================
+ASHOK RAJ GROUPS HOTEL APP - HOW TO RUN GUIDE
+=============================================================================
+
+1. FIRST-TIME / ONE-TIME SETUP
+-----------------------------------------------------------------------------
+# Install all workspace dependencies
 npm install
 
-#in root
+# Generate Prisma Client for Supabase Cloud DB
 npm run db:generate
 
-npm run api
+
+2. DATABASE (SUPABASE CLOUD)
+-----------------------------------------------------------------------------
+Your database is hosted on Supabase Cloud (no local PostgreSQL needed).
+- Cloud Dashboard: https://supabase.com/dashboard/project/grzlzvidmccrjpqxpbcf
+- Local Visual DB Browser (Prisma Studio):
+  npm run db:studio
+  (Opens at http://localhost:5555)
 
 
-#keep running
+3. BACKEND API (Fastify)
+-----------------------------------------------------------------------------
+In Terminal 1 (from project root):
+  npm run api
 
-# in frontend
-cd frontend/mobile
-npx expo start --offline -c
+- Runs at: http://localhost:3001
+- Health check: http://localhost:3001/health
+- Automatically connects to Supabase Cloud pooler.
 
-# Or if on a different Wi-Fi / Hotspot:
-# npx expo start --tunnel -c
+
+4. CUSTOMER MOBILE APP (Expo / React Native)
+-----------------------------------------------------------------------------
+In Terminal 2 (from project root):
+  npm run mobile
+
+Options inside Expo terminal:
+- Press 'w' -> Open Web browser preview (http://localhost:8081)
+- Press 'a' -> Open Android Emulator
+- Scan QR code with "Expo Go" on physical Android phone (same Wi-Fi)
+
+* If on different Wi-Fi / Campus Network / Mobile Hotspot:
+  cd frontend/mobile
+  npx expo start --tunnel -c
+
+
+5. ADMIN WEB DASHBOARD (Next.js)
+-----------------------------------------------------------------------------
+In Terminal 3 (from project root):
+  npm run admin
+
+- Runs at: http://localhost:3000
+- Connected to Supabase Auth & Cloud Database.
+
+
+Option 2 (Expo Tunnel Mode):
+In terminal, start mobile with tunnel mode:
+
+    npx expo start --tunnel
+
+=============================================================================
+ALL-IN-ONE RUN (Turborepo parallel dev):
+  npm run dev
+=============================================================================

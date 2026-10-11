@@ -43,6 +43,7 @@ import { FloatingActionButton } from '../components/ui/FloatingActionButton';
 import { useHomeStore } from '../store/useHomeStore';
 import { useCartStore } from '../store/useCartStore';
 import { useOrderStore } from '../store/useOrderStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { Palette, Radius, Spacing, FontSize } from '@ashok-raj/ui';
 import { proxyImageUrl } from '../utils/foodImageResolver';
 
@@ -230,6 +231,7 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const { isTamil } = useTranslation();
   const { data, refreshHomeFeed } = useHomeStore();
+  const user = useAuthStore((state) => state.user);
   const cartItems = useCartStore((state) => state.items);
   const orders = useOrderStore((state) => state.orders);
   const activeOrder = useOrderStore((state) => state.activeOrder);
@@ -459,7 +461,9 @@ export function HomeScreen({
           <View style={styles.brandCenter}>
             <Text style={styles.brandTitle}>AshokRaj Groups</Text>
             <View style={styles.greetingRow}>
-              <Text style={styles.greetingText}>{getGreeting()}</Text>
+              <Text style={styles.greetingText}>
+                {getGreeting()}, {user?.name ? user.name.split(' ')[0] : (isTamil ? 'விருந்தினர்' : 'Guest')}
+              </Text>
               <Sun size={13} color="#2563EB" />
             </View>
           </View>

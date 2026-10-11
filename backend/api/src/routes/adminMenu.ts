@@ -1,6 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { requireRoles } from '../plugins/authGuard.js';
 
 export const adminMenuRoutes: FastifyPluginAsync = async (app) => {
+  // Enforce ADMIN, SUPER_ADMIN, or MANAGER role for all admin menu management routes
+  app.addHook('preHandler', requireRoles('ADMIN', 'SUPER_ADMIN', 'MANAGER'));
+
   // Helper to invalidate all menu-related cache keys in Redis
   const invalidateMenuCache = async () => {
     try {

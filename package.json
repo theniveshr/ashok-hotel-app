@@ -28,7 +28,8 @@
     "api": "npm --workspace @ashok-raj/api run dev",
     "admin": "npm --workspace @ashok-raj/admin run dev",
     "typecheck:api": "npm --workspace @ashok-raj/api run typecheck",
-    "typecheck:admin": "npm --workspace @ashok-raj/admin run typecheck"
+    "typecheck:admin": "npm --workspace @ashok-raj/admin run typecheck",
+    "test:auth": "npm --workspace @ashok-raj/api run test:auth"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.19.1",

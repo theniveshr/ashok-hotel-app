@@ -8,6 +8,18 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
   const fallbackOrders = new Map<string, any>();
   const idempotencyStore = new Map<string, any>();
 
+  // Extract authenticated user if token is provided
+  app.addHook('preHandler', async (req) => {
+    if (req.headers.authorization) {
+      try {
+        const decoded = await req.jwtVerify<{ userId: string }>();
+        (req as any).user = decoded;
+      } catch {
+        // Continue if unauthenticated guest
+      }
+    }
+  });
+
   // WebSocket broadcaster helper
   const broadcastOrderUpdate = (orderId: string, event: string, payload: any) => {
     try {
