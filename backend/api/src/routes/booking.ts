@@ -94,6 +94,14 @@ export const bookingRoutes: FastifyPluginAsync = async (app) => {
     return `AR-BKG-${yy}${mm}${dd}-${random}`;
   };
 
+  // Helper: Normalize Room Type ID (aliases to canonical)
+  const normalizeRoomTypeId = (id: string): string => {
+    if (id === 'rt-standard-ac') return 'rt-single-ac';
+    if (id === 'rt-deluxe-ac') return 'rt-double-ac';
+    if (id === 'rt-family-suite') return 'rt-six-bed-suite';
+    return id;
+  };
+
   // Seed Initial Inventory & Sample Bookings
   const initBookingData = () => {
     if (inMemoryRoomTypes.size === 0) {
@@ -122,20 +130,20 @@ export const bookingRoutes: FastifyPluginAsync = async (app) => {
 
     if (inMemoryRooms.size === 0) {
       const initialRoomsList: Array<{ number: string; floor: number; typeId: string; status: any; notes?: string }> = [
-        { number: '101', floor: 1, typeId: 'rt-standard-ac', status: 'AVAILABLE', notes: 'Near Garden & Lobby' },
-        { number: '102', floor: 1, typeId: 'rt-standard-ac', status: 'OCCUPIED', notes: 'Guest Anand Kumar' },
-        { number: '103', floor: 1, typeId: 'rt-deluxe-ac', status: 'CLEANING', notes: 'Checkout at 11:00 AM' },
-        { number: '104', floor: 1, typeId: 'rt-deluxe-ac', status: 'OCCUPIED', notes: 'Guest Sundar Rajan (Active stay)' },
-        { number: '105', floor: 1, typeId: 'rt-family-suite', status: 'RESERVED', notes: 'Arrival expected at 04:00 PM' },
-        { number: '201', floor: 2, typeId: 'rt-deluxe-ac', status: 'AVAILABLE', notes: 'Pool Facing' },
-        { number: '202', floor: 2, typeId: 'rt-deluxe-ac', status: 'OCCUPIED', notes: 'VIP Guest' },
-        { number: '203', floor: 2, typeId: 'rt-standard-ac', status: 'MAINTENANCE', notes: 'AC Sensor Servicing' },
-        { number: '204', floor: 2, typeId: 'rt-standard-ac', status: 'AVAILABLE' },
-        { number: '205', floor: 2, typeId: 'rt-family-suite', status: 'OCCUPIED', notes: 'Family 4 guests' },
-        { number: '301', floor: 3, typeId: 'rt-family-suite', status: 'AVAILABLE', notes: 'Top Floor View' },
-        { number: '302', floor: 3, typeId: 'rt-deluxe-ac', status: 'BLOCKED', notes: 'Repainting scheduled' },
-        { number: '303', floor: 3, typeId: 'rt-deluxe-ac', status: 'AVAILABLE' },
-        { number: '304', floor: 3, typeId: 'rt-standard-ac', status: 'AVAILABLE' },
+        { number: '101', floor: 1, typeId: 'rt-single-ac', status: 'AVAILABLE', notes: 'Near Garden & Lobby' },
+        { number: '102', floor: 1, typeId: 'rt-single-non-ac', status: 'OCCUPIED', notes: 'Guest Anand Kumar' },
+        { number: '103', floor: 1, typeId: 'rt-double-ac', status: 'CLEANING', notes: 'Checkout at 11:00 AM' },
+        { number: '104', floor: 1, typeId: 'rt-double-ac', status: 'OCCUPIED', notes: 'Guest Sundar Rajan (Active stay)' },
+        { number: '105', floor: 1, typeId: 'rt-six-bed-suite', status: 'RESERVED', notes: 'Arrival expected at 04:00 PM' },
+        { number: '201', floor: 2, typeId: 'rt-double-ac', status: 'AVAILABLE', notes: 'Pool Facing' },
+        { number: '202', floor: 2, typeId: 'rt-double-ac', status: 'OCCUPIED', notes: 'VIP Guest' },
+        { number: '203', floor: 2, typeId: 'rt-single-ac', status: 'MAINTENANCE', notes: 'AC Sensor Servicing' },
+        { number: '204', floor: 2, typeId: 'rt-single-ac', status: 'AVAILABLE' },
+        { number: '205', floor: 2, typeId: 'rt-six-bed-suite', status: 'OCCUPIED', notes: 'Family 4 guests' },
+        { number: '301', floor: 3, typeId: 'rt-six-bed-suite', status: 'AVAILABLE', notes: 'Top Floor View' },
+        { number: '302', floor: 3, typeId: 'rt-double-ac', status: 'BLOCKED', notes: 'Repainting scheduled' },
+        { number: '303', floor: 3, typeId: 'rt-double-ac', status: 'AVAILABLE' },
+        { number: '304', floor: 3, typeId: 'rt-single-ac', status: 'AVAILABLE' },
       ];
 
       initialRoomsList.forEach((r) => {
@@ -376,10 +384,7 @@ export const bookingRoutes: FastifyPluginAsync = async (app) => {
         updatedAt: pastDateOut.toISOString(),
       };
 
-      inMemoryBookings.set(bkg1.id, bkg1);
-      inMemoryBookings.set(bkg2.id, bkg2);
-      inMemoryBookings.set(bkg3.id, bkg3);
-      inMemoryBookings.set(bkg4.id, bkg4);
+      // No initial sample bookings for fresh start
     }
   };
 
@@ -420,12 +425,14 @@ export const bookingRoutes: FastifyPluginAsync = async (app) => {
     checkOutStr: string,
     preferredRoomId?: string
   ): Room | null => {
+    const canonicalTypeId = normalizeRoomTypeId(typeId);
+
     // If a preferred room is requested, check if it fits criteria
     if (preferredRoomId) {
       const prefRoom = inMemoryRooms.get(preferredRoomId);
       if (
         prefRoom &&
-        prefRoom.typeId === typeId &&
+        (prefRoom.typeId === canonicalTypeId || prefRoom.typeId === typeId) &&
         prefRoom.status !== 'MAINTENANCE' &&
         prefRoom.status !== 'BLOCKED' &&
         prefRoom.isActive &&
@@ -438,7 +445,7 @@ export const bookingRoutes: FastifyPluginAsync = async (app) => {
     // Find all matching active rooms of type
     const candidateRooms = Array.from(inMemoryRooms.values()).filter(
       (r) =>
-        r.typeId === typeId &&
+        (r.typeId === canonicalTypeId || r.typeId === typeId) &&
         r.status !== 'MAINTENANCE' &&
         r.status !== 'BLOCKED' &&
         r.isActive
@@ -605,7 +612,8 @@ export const bookingRoutes: FastifyPluginAsync = async (app) => {
       paymentMethod,
     } = parseResult.data;
 
-    const roomType = inMemoryRoomTypes.get(roomTypeId);
+    const canonicalTypeId = normalizeRoomTypeId(roomTypeId);
+    const roomType = inMemoryRoomTypes.get(canonicalTypeId) || inMemoryRoomTypes.get(roomTypeId);
     if (!roomType) {
       return reply.status(404).send({
         success: false,
@@ -747,11 +755,28 @@ export const bookingRoutes: FastifyPluginAsync = async (app) => {
   // ── GET /bookings/my-bookings — Customer Stay History ─────────────────────
   app.get('/bookings/my-bookings', async (req, reply) => {
     initBookingData();
-    const userId = (req as any).user?.id || 'user-sample-1';
+    const userId = (req as any).user?.id || (req as any).user?.userId;
 
-    const userBookings = Array.from(inMemoryBookings.values())
-      .filter((b) => b.userId === userId || b.userId === 'guest-user' || b.userId === 'user-sample-1')
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    let userBookings: any[] = [];
+    if (userId) {
+      try {
+        const dbBookings = await app.prisma.booking.findMany({
+          where: { userId },
+          include: {
+            room: { include: { type: true } },
+            guests: true,
+            statusHistory: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (dbBookings && dbBookings.length > 0) {
+          userBookings = dbBookings;
+        }
+      } catch {
+        // Fallback to in-memory if DB query fails
+        userBookings = Array.from(inMemoryBookings.values()).filter((b) => b.userId === userId);
+      }
+    }
 
     const activeStays = userBookings.filter(
       (b) => b.status === 'CONFIRMED' || b.status === 'CHECKED_IN' || b.status === 'PENDING'
@@ -849,9 +874,10 @@ export const bookingRoutes: FastifyPluginAsync = async (app) => {
       cancellationCharge,
     });
 
-    const result: BookingCancellationResult = {
+    const result = {
       bookingId: booking.id,
       bookingNumber: booking.bookingNumber,
+      status: 'CANCELLED',
       refundAmount,
       cancellationCharge,
       reason: parseResult.data.reason,

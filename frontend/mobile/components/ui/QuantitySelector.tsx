@@ -64,16 +64,19 @@ export function QuantitySelector({
       <TouchableOpacity
         onPress={handleDecrement}
         disabled={quantity <= min}
+        accessibilityRole="button"
+        accessibilityLabel="Decrease quantity"
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         style={[
           styles.button,
           {
-            width: isSmall ? 28 : 36,
+            width: isSmall ? 32 : 40,
             opacity: quantity <= min ? 0.3 : 1,
           },
         ]}
         activeOpacity={0.7}
       >
-        <Minus size={isSmall ? 12 : 16} color={colors.textPrimary} />
+        <Minus size={isSmall ? 14 : 16} color={colors.textPrimary} />
       </TouchableOpacity>
 
       <View style={styles.valueWrap}>
@@ -93,16 +96,19 @@ export function QuantitySelector({
       <TouchableOpacity
         onPress={handleIncrement}
         disabled={quantity >= max}
+        accessibilityRole="button"
+        accessibilityLabel="Increase quantity"
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         style={[
           styles.button,
           {
-            width: isSmall ? 28 : 36,
+            width: isSmall ? 32 : 40,
             opacity: quantity >= max ? 0.3 : 1,
           },
         ]}
         activeOpacity={0.7}
       >
-        <Plus size={isSmall ? 12 : 16} color={colors.textPrimary} />
+        <Plus size={isSmall ? 14 : 16} color={colors.textPrimary} />
       </TouchableOpacity>
     </View>
   );

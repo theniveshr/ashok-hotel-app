@@ -44,15 +44,23 @@ export function Modal({
           style={[
             styles.dialog,
             {
-              backgroundColor: '#FFFFFF',
-              borderColor: '#E2E8F0',
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
             },
           ]}
         >
           {(title || showCloseButton) && (
-            <View style={styles.header}>
+            <View
+              style={[
+                styles.header,
+                {
+                  backgroundColor: colors.surface,
+                  borderBottomColor: colors.border,
+                },
+              ]}
+            >
               {title ? (
-                <Text style={styles.title} numberOfLines={1}>
+                <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
                   {title}
                 </Text>
               ) : (
@@ -65,18 +73,18 @@ export function Modal({
                     onClose();
                   }}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  style={styles.closeBtn}
+                  style={[styles.closeBtn, { backgroundColor: colors.surfaceElevated }]}
                   activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel="Close modal"
                 >
-                  <X size={18} color="#475569" />
+                  <X size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
               )}
             </View>
           )}
 
-          <View style={styles.body}>{children}</View>
+          <View style={[styles.body, { backgroundColor: colors.surface }]}>{children}</View>
         </View>
       </View>
     </RNModal>

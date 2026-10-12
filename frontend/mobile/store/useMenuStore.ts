@@ -1184,11 +1184,11 @@ export const mockMenuItems: MenuItem[] = [
 ];
 
 export const useMenuStore = create<MenuState>((set, get) => ({
-  categories: mockCategories,
-  items: mockMenuItems,
+  categories: [],
+  items: [],
   selectedCategoryId: null,
   selectedItem: null,
-  favorites: ['rest-ghee-dosa', 'rest-mutton-biryani'],
+  favorites: [],
   searchQuery: '',
   vegOnly: false,
   spicyOnly: false,
@@ -1202,48 +1202,20 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       const res = await apiFetch(`/customer/menu/categories`);
       if (res.ok) {
         const json = await res.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        if (json.success && Array.isArray(json.data)) {
           set({ categories: json.data });
           return;
         }
       }
     } catch {
-      // Retain comprehensive mock categories
+      // Network unavailable
     }
-    set({ categories: mockCategories });
   },
 
   fetchItems: async () => {
-    // 1. Immediately apply filters locally so UI is never stuck or empty
+    set({ isLoading: true, error: null });
     const { selectedCategoryId, searchQuery, vegOnly, spicyOnly, bestsellerOnly } = get();
-    let filtered = mockMenuItems;
 
-    if (selectedCategoryId) {
-      filtered = filtered.filter((i) => i.categoryId === selectedCategoryId);
-    }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(
-        (i) =>
-          i.name.toLowerCase().includes(q) ||
-          (i.nameTa && i.nameTa.toLowerCase().includes(q)) ||
-          (i.description && i.description.toLowerCase().includes(q)) ||
-          (i.descriptionTa && i.descriptionTa.toLowerCase().includes(q))
-      );
-    }
-    if (vegOnly) {
-      filtered = filtered.filter((i) => i.isVegetarian);
-    }
-    if (spicyOnly) {
-      filtered = filtered.filter((i) => i.isSpicy);
-    }
-    if (bestsellerOnly) {
-      filtered = filtered.filter((i) => i.isBestseller);
-    }
-
-    set({ items: filtered, isLoading: false, error: null });
-
-    // 2. Fetch latest from API in background if online
     try {
       const params = new URLSearchParams();
       if (selectedCategoryId) params.append('categoryId', selectedCategoryId);
@@ -1255,15 +1227,16 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       const res = await apiFetch(`/customer/menu/items?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        if (json.success && Array.isArray(json.data)) {
           set({ items: json.data, isLoading: false });
           return;
         }
       }
-    } catch {
-      // Network unavailable or timeout; keep local filtered items
+    } catch (err: any) {
+      set({ error: err?.message || 'Failed to fetch menu items', isLoading: false });
+      return;
     }
-    set({ isLoading: false });
+    set({ items: [], isLoading: false });
   },
 
   fetchItemDetail: async (id: string) => {
@@ -1280,7 +1253,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       // Local lookup fallback
     }
 
-    const item = mockMenuItems.find((i) => i.id === id) || null;
+    const item = get().items.find((i) => i.id === id) || null;
     set({ selectedItem: item });
     return item;
   },

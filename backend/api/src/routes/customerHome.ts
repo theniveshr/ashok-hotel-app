@@ -2,9 +2,111 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { HomeFeedData, ApiResponse, MenuItem, RoomType } from '@ashok-raj/types';
 
 export const customerHomeRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.get('/home', async (_request, reply) => {
+  fastify.get('/home', async (request, reply) => {
     try {
-      // 1. Query featured menu items from Prisma
+      // 1. Resolve user from auth token or header
+      let userId: string | null = null;
+      let userName = 'Guest';
+
+      const authHeader = request.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const decoded: any = await (request as any).jwtVerify?.();
+          if (decoded && (decoded.id || decoded.userId)) {
+            userId = decoded.id || decoded.userId;
+          }
+        } catch {
+          // Unauthenticated guest
+        }
+      }
+      if (!userId && request.headers['x-user-id']) {
+        userId = request.headers['x-user-id'] as string;
+      }
+
+      // 2. Fetch User & Loyalty if authenticated
+      let loyaltyData: {
+        points: number;
+        tier: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+        rupeeEquivalent: number;
+      } = {
+        points: 0,
+        tier: 'BRONZE',
+        rupeeEquivalent: 0,
+      };
+
+      let activeOrderData: any = undefined;
+      let activeBookingData: any = undefined;
+
+      if (userId) {
+        try {
+          const dbUser = await fastify.prisma.user.findUnique({
+            where: { id: userId },
+            include: { loyaltyAccount: true },
+          });
+          if (dbUser) {
+            userName = dbUser.name || 'Valued Guest';
+            if (dbUser.loyaltyAccount) {
+              loyaltyData = {
+                points: dbUser.loyaltyAccount.points,
+                tier: (dbUser.loyaltyAccount.tier as any) || 'BRONZE',
+                rupeeEquivalent: dbUser.loyaltyAccount.points * 0.25,
+              };
+            }
+          }
+        } catch {}
+
+        // Check active order
+        try {
+          const activeOrder: any = await fastify.prisma.order.findFirst({
+            where: {
+              userId,
+              status: { in: ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'] as any },
+            },
+            orderBy: { createdAt: 'desc' },
+            include: { items: true, table: true },
+          });
+
+          if (activeOrder) {
+            activeOrderData = {
+              id: activeOrder.id,
+              orderNumber: activeOrder.orderNumber,
+              status: activeOrder.status,
+              type: activeOrder.type,
+              estimatedMinutes: 20,
+              itemsCount: activeOrder.items ? activeOrder.items.length : 0,
+              totalAmount: Number(activeOrder.total || 0),
+              tableNumber: activeOrder.table?.tableNumber ?? undefined,
+            };
+          }
+        } catch {}
+
+        // Check active booking
+        try {
+          const activeBooking = await fastify.prisma.booking.findFirst({
+            where: {
+              userId,
+              status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+            },
+            orderBy: { createdAt: 'desc' },
+            include: { room: { include: { type: true } } },
+          });
+
+          if (activeBooking) {
+            activeBookingData = {
+              id: activeBooking.id,
+              bookingNumber: activeBooking.bookingNumber,
+              roomTypeTitle: activeBooking.room?.type?.name ?? 'Room Stay',
+              roomTypeTitleTa: activeBooking.room?.type?.nameTa ?? 'அறை',
+              roomNumber: activeBooking.room?.roomNumber ?? '—',
+              status: activeBooking.status,
+              checkInDate: activeBooking.checkIn.toISOString(),
+              checkOutDate: activeBooking.checkOut.toISOString(),
+            };
+          }
+        } catch {}
+      }
+
+      // 3. Query featured menu items from Prisma
       let popularFoods: MenuItem[] = [];
       try {
         const popularItemsRaw = await fastify.prisma.menuItem.findMany({
@@ -35,7 +137,7 @@ export const customerHomeRoutes: FastifyPluginAsync = async (fastify) => {
           isAvailable: item.isAvailable,
           preparationTimeMinutes: item.preparationTimeMinutes,
           rating: Number(item.rating ?? 4.8),
-          reviewCount: item.reviewCount ?? 42,
+          reviewCount: item.reviewCount ?? 0,
           ingredients: item.ingredients ?? [],
           allergens: item.allergens ?? [],
           tags: item.tags ?? [],
@@ -43,10 +145,10 @@ export const customerHomeRoutes: FastifyPluginAsync = async (fastify) => {
           updatedAt: item.updatedAt.toISOString(),
         }));
       } catch {
-        // Prisma fallback
+        // Fallback to empty if DB query fails
       }
 
-      // 2. Query featured room types from Prisma
+      // 4. Query room types from Prisma
       let featuredRooms: RoomType[] = [];
       try {
         const roomTypesRaw = await fastify.prisma.roomType.findMany({
@@ -56,7 +158,7 @@ export const customerHomeRoutes: FastifyPluginAsync = async (fastify) => {
 
         featuredRooms = roomTypesRaw.map((rt: any) => ({
           id: rt.id,
-          branchId: 'branch-kalaiyarkoil',
+          branchId: '00000000-0000-0000-0000-000000000001',
           title: rt.name,
           titleTa: rt.nameTa,
           description: rt.description ?? '',
@@ -65,70 +167,48 @@ export const customerHomeRoutes: FastifyPluginAsync = async (fastify) => {
           maxOccupancy: rt.maxOccupancy,
           isAc: true,
           roomSizeSqft: 280,
-          totalRooms: 12,
+          totalRooms: 10,
           amenities: rt.amenities ?? [],
           images: rt.imageUrls ?? [],
           createdAt: rt.createdAt.toISOString(),
           updatedAt: rt.updatedAt.toISOString(),
         }));
       } catch {
-        // Fallback
+        // Fallback to empty if DB query fails
       }
 
-      // 3. Construct dynamic customer home feed
+      // 5. Dynamic customer home feed
       const homeFeed: HomeFeedData = {
         greeting: {
-          userName: 'Valued Guest',
+          userName,
           branchName: 'Kalaiyarkoil Main Branch',
           branchNameTa: 'காளையார்கோவில் முதன்மை கிளை',
         },
-        loyalty: {
-          points: 450,
-          tier: 'GOLD',
-          rupeeEquivalent: 112.5,
-        },
-        activeOrder: {
-          id: 'ord_102',
-          orderNumber: 'AR-2026-8891',
-          status: 'PREPARING',
-          type: 'DINE_IN',
-          estimatedMinutes: 12,
-          itemsCount: 3,
-          totalAmount: 480,
-          tableNumber: '04',
-        },
-        activeBooking: {
-          id: 'bk_501',
-          bookingNumber: 'AR-STAY-4029',
-          roomTypeTitle: 'Deluxe AC Family Suite',
-          roomTypeTitleTa: 'டீலக்ஸ் ஏசி குடும்ப சூட்',
-          roomNumber: '108',
-          status: 'CONFIRMED',
-          checkInDate: '2026-08-24T14:00:00Z',
-          checkOutDate: '2026-08-26T11:00:00Z',
-        },
+        loyalty: loyaltyData,
+        activeOrder: activeOrderData,
+        activeBooking: activeBookingData,
         banners: [
           {
             id: 'b1',
             title: 'Special Chettinad Biryani Feast',
             titleTa: 'சிறப்பு செட்டிநாடு பிரியாணி விருந்து',
-            subtitle: 'Get 20% off on all weekend dining orders',
-            subtitleTa: 'அனைத்து வார இறுதி உணவுகளுக்கும் 20% தள்ளுபடி',
+            subtitle: 'Authentic flavors and fresh spices daily',
+            subtitleTa: 'அசல் சுவை மற்றும் பாரம்பரிய மசாலா மணத்துடன்',
             imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/hero-image.JPG',
-            badgeText: 'HOT OFFER',
-            badgeTextTa: 'சிறப்பு ஆஃபர்',
-            code: 'CHETTINAD20',
+            badgeText: 'POPULAR',
+            badgeTextTa: 'பிரபலம்',
+            code: 'CHETTINAD',
           },
           {
             id: 'b2',
-            title: 'Lodge Booking Monsoon Offer',
-            titleTa: 'தங்குமிடம் பருவமழை சிறப்பு தள்ளுபடி',
-            subtitle: '15% instant cashback on 2+ nights stay',
-            subtitleTa: '2 இரவுகள் தங்கினால் 15% உடனடி கேஷ்பேக்',
+            title: 'Lodge Comfort Stay',
+            titleTa: 'லாட்ஜ் வசதியான தங்குமிடம்',
+            subtitle: 'AC Rooms with 24/7 room service & parking',
+            subtitleTa: 'குளிரூட்டி அறைகள், 24/7 அறை சேவை மற்றும் பார்க்கிங்',
             imageUrl: 'https://www.ashokrajgroups.com/images/Lodge/double-bed-ac.webp',
-            badgeText: 'STAY MORE',
-            badgeTextTa: 'தங்கி மகிழ்க',
-            code: 'STAYSAFE15',
+            badgeText: 'LODGE',
+            badgeTextTa: 'லாட்ஜ்',
+            code: 'STAYSAFE',
           },
         ],
         quickActions: [
@@ -161,128 +241,10 @@ export const customerHomeRoutes: FastifyPluginAsync = async (fastify) => {
             route: 'orders',
           },
         ],
-        popularFoods: popularFoods.length > 0 ? popularFoods : [
-          {
-            id: 'm1',
-            categoryId: 'cat_biryani',
-            name: 'Ashok Raj Special Mutton Biryani',
-            nameTa: 'அசோக் ராஜ் ஸ்பெஷல் மட்டன் பிரியாணி',
-            description: 'Seeraga samba rice cooked with tender mutton and authentic Chettinad spices.',
-            descriptionTa: 'சீரக சம்பா அரிசியில் காரசாரமான செட்டிநாடு மசாலாவுடன் சமைத்த மட்டன் பிரியாணி.',
-            price: 320,
-            discountPercentage: 10,
-            imageUrl: 'https://images.pexels.com/photos/12737656/pexels-photo-12737656.jpeg?auto=compress&cs=tinysrgb&w=800',
-            isVeg: false,
-            isVegetarian: false,
-            isVegan: false,
-            isGlutenFree: true,
-            isSpicy: true,
-            isPopular: true,
-            isBestseller: true,
-            isFeatured: true,
-            isAvailable: true,
-            preparationTimeMinutes: 20,
-            rating: 4.9,
-            reviewCount: 1420,
-            ingredients: ['Seeraga Samba Rice', 'Mutton Tenderloin', 'Ghee'],
-            allergens: ['Dairy'],
-            tags: ['biryani', 'mutton'],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          {
-            id: 'm2',
-            categoryId: 'cat_parotta',
-            name: 'Madurai Bun Parotta (2 Pcs)',
-            nameTa: 'மதுரை பன் புரோட்டா (2 பிஸ்)',
-            description: 'Fluffy layered bun parotta served with spicy chicken salna.',
-            descriptionTa: 'மென்மையான மதுரை பன் புரோட்டா காரசாரமான சால்னாவுடன்.',
-            price: 90,
-            discountPercentage: 0,
-            imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/Parotto.webp',
-            isVeg: false,
-            isVegetarian: false,
-            isVegan: false,
-            isGlutenFree: false,
-            isSpicy: true,
-            isPopular: true,
-            isBestseller: true,
-            isFeatured: false,
-            isAvailable: true,
-            preparationTimeMinutes: 12,
-            rating: 4.8,
-            reviewCount: 2310,
-            ingredients: ['Wheat Flour', 'Butter', 'Chicken Salna'],
-            allergens: ['Gluten'],
-            tags: ['parotta', 'south indian'],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        ],
-        recommendedFoods: [
-          {
-            id: 'm3',
-            categoryId: 'cat_starters',
-            name: 'Kalaiyarkoil Special Chicken Chukka',
-            nameTa: 'காளையார்கோவில் ஸ்பெஷல் சிக்கன் சுக்கா',
-            description: 'Pan-roasted country chicken with hand-pounded pepper and curry leaves.',
-            descriptionTa: 'கைக்குத்தல் மிளகு மற்றும் கறிவேப்பிலையுடன் வறுத்த நாட்டுக்கோழி சுக்கா.',
-            price: 240,
-            discountPercentage: 0,
-            imageUrl: 'https://images.pexels.com/photos/2233729/pexels-photo-2233729.jpeg?auto=compress&cs=tinysrgb&w=800',
-            isVeg: false,
-            isVegetarian: false,
-            isVegan: false,
-            isGlutenFree: true,
-            isSpicy: true,
-            isPopular: true,
-            isBestseller: true,
-            isFeatured: true,
-            isAvailable: true,
-            preparationTimeMinutes: 15,
-            rating: 4.9,
-            reviewCount: 980,
-            ingredients: ['Country Chicken', 'Black Pepper', 'Curry Leaves'],
-            allergens: [],
-            tags: ['chicken', 'starters'],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        ],
-        featuredRooms: featuredRooms.length > 0 ? featuredRooms : [
-          {
-            id: 'rm1',
-            branchId: 'b1',
-            title: 'Deluxe AC Family Suite',
-            titleTa: 'டீலக்ஸ் ஏசி குடும்ப சூட்',
-            description: 'Spacious suite with King bed, city view, and complimentary breakfast.',
-            descriptionTa: 'அகலமான அரண்மனை குடும்ப சூட் அறை, இலவச காலை உணவோடு.',
-            basePrice: 2800,
-            maxOccupancy: 4,
-            isAc: true,
-            roomSizeSqft: 420,
-            totalRooms: 6,
-            amenities: ['Air Conditioning', 'Free WiFi', 'Flat TV', 'Mini Fridge', 'Balcony'],
-            images: ['https://www.ashokrajgroups.com/images/Lodge/double-bed-ac.webp'],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        ],
-        offers: [
-          {
-            id: 'off1',
-            title: 'Weekend Dine-In Fest',
-            titleTa: 'வார இறுதி உணவுத் திருவிழா',
-            description: 'Flat ₹150 OFF on orders above ₹799',
-            descriptionTa: '₹799க்கு மேல் ஆர்டர் செய்தால் ₹150 தள்ளுபடி',
-            code: 'WEEKEND150',
-            discountType: 'FIXED',
-            discountValue: 150,
-            minOrderValue: 799,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        ],
+        popularFoods,
+        recommendedFoods: [],
+        featuredRooms,
+        offers: [],
       };
 
       const response: ApiResponse<HomeFeedData> = {

@@ -31,6 +31,7 @@ import {
   SettingsScreen,
   SplashScreen,
   WaiterScreen,
+  TableReservationScreen,
 } from './screens';
 import { useCartStore } from './store/useCartStore';
 import { useHomeStore } from './store/useHomeStore';
@@ -49,6 +50,7 @@ type ActiveScreen =
   | 'cart'
   | 'checkout'
   | 'dine-in'
+  | 'table-reservation'
   | 'room-detail'
   | 'booking'
   | 'mini-hall'
@@ -62,7 +64,7 @@ function MainApp() {
     MPLUSU: require('./assets/fonts/MPLUSU-VariableFont_wght.ttf'),
   });
 
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const cartItems = useCartStore((state) => state.items);
   const addItem = useCartStore((state) => state.addItem);
   const homeData = useHomeStore((state) => state.data);
@@ -171,6 +173,7 @@ function MainApp() {
             onNavigateToRestaurant={openRestaurant}
             onNavigateToLodge={() => setActiveScreen('lodge')}
             onNavigateToMiniHall={() => setActiveScreen('mini-hall')}
+            onNavigateToTableReservation={() => setActiveScreen('table-reservation')}
             onNavigateToOffers={() => goTabs('offers')}
             onNavigateToOrders={() => goTabs('orders')}
             onNavigateToBookings={() => goTabs('bookings')}
@@ -293,6 +296,13 @@ function MainApp() {
             onExploreMenuForTable={() => setActiveScreen('restaurant')}
           />
         );
+      case 'table-reservation':
+        return (
+          <TableReservationScreen
+            onBack={() => goTabs('home')}
+            onExploreMenu={() => openRestaurant()}
+          />
+        );
       case 'room-detail':
         return (
           <RoomDetailScreen
@@ -334,7 +344,10 @@ function MainApp() {
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={Palette.slate50} />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={colors.background}
+      />
       <View style={styles.screenContainer}>{renderScreen()}</View>
       {activeScreen === 'tabs' && (
         <BottomNavigation activeTab={activeTab} onTabPress={goTabs} />

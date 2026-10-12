@@ -44,6 +44,7 @@ import { GlassCard } from '../components/ui/GlassCard';
 import { Radius, Spacing, FontSize, Palette } from '@ashok-raj/ui';
 import { LODGE, TAX } from '@ashok-raj/config';
 import type { BookingExtra, BookingGuest } from '@ashok-raj/types';
+import { apiFetch } from '../config/api';
 
 export interface BookingScreenProps {
   initialRoomTypeId?: string;
@@ -90,10 +91,10 @@ export function BookingScreen({
   const [selectedRoomTypeId, setSelectedRoomTypeId] = useState(initialRoomTypeId);
 
   // Primary Guest Form
-  const [primaryName, setPrimaryName] = useState('Sundar Rajan');
-  const [primaryPhone, setPrimaryPhone] = useState('9876543210');
+  const [primaryName, setPrimaryName] = useState('');
+  const [primaryPhone, setPrimaryPhone] = useState('');
   const [idType, setIdType] = useState<'Aadhaar' | 'Passport' | 'PAN' | 'Driving Licence'>('Aadhaar');
-  const [idNumber, setIdNumber] = useState('8923 4589 1204');
+  const [idNumber, setIdNumber] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
 
   // Additional Guests
@@ -155,9 +156,37 @@ export function BookingScreen({
   const balanceDueAtCheckin = paymentMethod === 'HOTEL' ? grandTotal : 0;
 
   // Handle Coupon Apply
-  const handleApplyCoupon = () => {
+  const handleApplyCoupon = async () => {
     setCouponError(null);
     const code = couponCodeInput.toUpperCase().trim();
+    if (!code) return;
+
+    try {
+      const res = await apiFetch('/api/v1/lodge/apply-coupon', {
+        method: 'POST',
+        body: JSON.stringify({
+          code,
+          roomTypeId: selectedRoomTypeId,
+          nights,
+          subtotal: subtotalBeforeDiscount,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        setAppliedCoupon({
+          code: json.data.code,
+          discountAmount: json.data.discountAmount,
+        });
+        return;
+      } else if (json.error?.message) {
+        setCouponError(json.error.message);
+        setAppliedCoupon(null);
+        return;
+      }
+    } catch {
+      // Offline fallback: check local config
+    }
+
     const coupon = LODGE.SAMPLE_COUPONS.find((c) => c.code === code);
     if (!coupon) {
       setCouponError(isTamil ? 'தவறான கூப்பன் குறியீடு' : 'Invalid coupon code');
@@ -217,7 +246,7 @@ export function BookingScreen({
   };
 
   // Handle Final Booking Submission (Flow Step 9)
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
     if (!primaryName.trim()) {
       Alert.alert(isTamil ? 'பிழை' : 'Validation Error', isTamil ? 'முதன்மை விருந்தினர் பெயரை உள்ளிடவும்' : 'Please enter primary guest name');
       return;
@@ -228,14 +257,72 @@ export function BookingScreen({
     }
 
     setLoading(true);
-    setTimeout(() => {
+
+    try {
+      const payload = {
+        roomTypeId: selectedRoomTypeId,
+        checkIn: checkInDate,
+        checkOut: checkOutDate,
+        adultsCount,
+        childrenCount,
+        guests: [
+          {
+            name: primaryName.trim(),
+            phone: primaryPhone.trim(),
+            idType,
+            idNumber: idNumber.trim() || undefined,
+            isPrimary: true,
+          },
+          ...additionalGuests.map((g) => ({
+            name: g.name.trim(),
+            phone: g.phone.trim() || undefined,
+            idType: g.idType,
+            idNumber: g.idNumber.trim() || undefined,
+            isPrimary: false,
+          })),
+        ],
+        extras: selectedExtraIds.map((id) => {
+          const ex = availableExtras.find((e) => e.id === id);
+          return {
+            name: ex?.name || id,
+            nameTa: ex?.nameTa || id,
+            price: ex?.price || 0,
+          };
+        }),
+        couponCode: appliedCoupon?.code,
+        specialRequests: specialRequests.trim() || undefined,
+        paymentMethod: paymentMethod === 'HOTEL' ? 'CASH' : paymentMethod,
+      };
+
+      const res = await apiFetch('/api/v1/lodge/bookings', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        setConfirmedBookingId(json.data.bookingNumber || json.data.id);
+        setAllocatedRoomNumber(json.data.room?.roomNumber || '104');
+        setActiveStep('CONFIRMED');
+        return;
+      } else if (json.error?.message) {
+        Alert.alert(
+          isTamil ? 'முன்பதிவு தகவல்' : 'Booking Notice',
+          json.error.message
+        );
+        return;
+      }
+    } catch {
+      // Offline fallback: generate local confirmation
+    } finally {
       setLoading(false);
-      const generatedBkg = `AR-BKG-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
-      const assignedRoom = selectedRoomTypeId === 'rt-family-suite' ? '301' : selectedRoomTypeId === 'rt-deluxe-ac' ? '201' : '101';
-      setConfirmedBookingId(generatedBkg);
-      setAllocatedRoomNumber(assignedRoom);
-      setActiveStep('CONFIRMED');
-    }, 1000);
+    }
+
+    const generatedBkg = `AR-BKG-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const assignedRoom = selectedRoomTypeId === 'rt-six-bed-suite' ? '301' : selectedRoomTypeId === 'rt-double-ac' ? '201' : '101';
+    setConfirmedBookingId(generatedBkg);
+    setAllocatedRoomNumber(assignedRoom);
+    setActiveStep('CONFIRMED');
   };
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -645,7 +732,7 @@ export function BookingScreen({
                 <TextInput
                   value={primaryName}
                   onChangeText={setPrimaryName}
-                  placeholder={isTamil ? 'உங்கள் முழு பெயர்' : 'e.g. Sundar Rajan'}
+                  placeholder={isTamil ? 'முழு பெயரை உள்ளிடவும்' : 'Enter full name'}
                   placeholderTextColor={colors.textTertiary}
                   style={[styles.input, { color: colors.textPrimary }]}
                 />
@@ -659,7 +746,7 @@ export function BookingScreen({
                 <TextInput
                   value={primaryPhone}
                   onChangeText={setPrimaryPhone}
-                  placeholder="9876543210"
+                  placeholder={isTamil ? 'மொபைல் எண்ணை உள்ளிடவும்' : 'Enter mobile number'}
                   placeholderTextColor={colors.textTertiary}
                   keyboardType="phone-pad"
                   maxLength={10}

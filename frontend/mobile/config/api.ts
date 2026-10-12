@@ -7,16 +7,26 @@ const STORAGE_KEY_CUSTOM_API = '@ashok_raj/custom_api_url';
 let inMemoryCustomApiUrl: string | null = null;
 
 // Initialize custom URL from AsyncStorage if previously saved by user
+// Initialize custom URL from AsyncStorage if previously saved by user
 try {
-  AsyncStorage.getItem(STORAGE_KEY_CUSTOM_API).then((stored) => {
-    if (stored && stored.trim()) {
-      inMemoryCustomApiUrl = trimTrailingSlash(stored.trim());
-    }
-  }).catch(() => {});
+  AsyncStorage.getItem(STORAGE_KEY_CUSTOM_API)
+    .then((stored) => {
+      if (stored && stored.trim()) {
+        const clean = trimTrailingSlash(stored.trim());
+        // Auto-purge stale campus Wi-Fi IP
+        if (clean.includes('10.4.1.101')) {
+          AsyncStorage.removeItem(STORAGE_KEY_CUSTOM_API).catch(() => {});
+          inMemoryCustomApiUrl = null;
+        } else {
+          inMemoryCustomApiUrl = clean;
+        }
+      }
+    })
+    .catch(() => {});
 } catch {}
 
 export async function setCustomApiUrl(url: string | null): Promise<void> {
-  if (!url || !url.trim()) {
+  if (!url || !url.trim() || url.includes('10.4.1.101')) {
     inMemoryCustomApiUrl = null;
     await AsyncStorage.removeItem(STORAGE_KEY_CUSTOM_API);
   } else {
@@ -31,8 +41,8 @@ export function getCustomApiUrl(): string | null {
 }
 
 export function getApiBaseUrl(): string {
-  // 1. Explicit user override from app Settings
-  if (inMemoryCustomApiUrl) {
+  // 1. Explicit user override from app Settings (ignoring stale campus IP)
+  if (inMemoryCustomApiUrl && !inMemoryCustomApiUrl.includes('10.4.1.101')) {
     const root = trimTrailingSlash(inMemoryCustomApiUrl);
     return root.endsWith('/api/v1') ? root : `${root}/api/v1`;
   }
@@ -40,7 +50,9 @@ export function getApiBaseUrl(): string {
   // 2. Web browser: use window.location.hostname
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const host = window.location.hostname;
-    return `http://${host}:3001/api/v1`;
+    if (host !== 'localhost' && host !== '127.0.0.1') {
+      return `http://${host}:3001/api/v1`;
+    }
   }
 
   // 3. React Native on physical device: dynamically extract host from Expo bundle scriptURL
@@ -48,42 +60,65 @@ export function getApiBaseUrl(): string {
     const scriptURL: string | undefined = NativeModules?.SourceCode?.scriptURL;
     if (scriptURL) {
       const match = scriptURL.match(/^https?:\/\/([^/:]+)/);
-      if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
+      if (
+        match &&
+        match[1] &&
+        match[1] !== 'localhost' &&
+        match[1] !== '127.0.0.1' &&
+        match[1] !== '10.4.1.101'
+      ) {
         return `http://${match[1]}:3001/api/v1`;
       }
     }
   } catch {}
 
-  // 4. Fallback to EXPO_PUBLIC_API_URL or localhost
+  // 4. Configured environment variable
   const configuredApi = (process.env.EXPO_PUBLIC_API_URL || '').trim();
-  const apiRoot = trimTrailingSlash(configuredApi || 'http://localhost:3001');
-  return apiRoot.endsWith('/api/v1') ? apiRoot : `${apiRoot}/api/v1`;
+  if (configuredApi && !configuredApi.includes('10.4.1.101')) {
+    const apiRoot = trimTrailingSlash(configuredApi);
+    return apiRoot.endsWith('/api/v1') ? apiRoot : `${apiRoot}/api/v1`;
+  }
+
+  // 5. Default local network fallback for physical Android device testing
+  return 'http://172.18.28.238:3001/api/v1';
 }
 
 export function getWsBaseUrl(): string {
-  if (inMemoryCustomApiUrl) {
+  if (inMemoryCustomApiUrl && !inMemoryCustomApiUrl.includes('10.4.1.101')) {
     const wsRoot = trimTrailingSlash(inMemoryCustomApiUrl).replace(/^http/, 'ws');
-    return wsRoot.endsWith('/api/v1') ? wsRoot.replace(/\/api\/v1$/, '') : wsRoot;
+    return wsRoot.replace(/\/api\/v1$/, '');
   }
 
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const host = window.location.hostname;
-    return `ws://${host}:3001`;
+    if (host !== 'localhost' && host !== '127.0.0.1') {
+      return `ws://${host}:3001`;
+    }
   }
 
   try {
     const scriptURL: string | undefined = NativeModules?.SourceCode?.scriptURL;
     if (scriptURL) {
       const match = scriptURL.match(/^https?:\/\/([^/:]+)/);
-      if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
+      if (
+        match &&
+        match[1] &&
+        match[1] !== 'localhost' &&
+        match[1] !== '127.0.0.1' &&
+        match[1] !== '10.4.1.101'
+      ) {
         return `ws://${match[1]}:3001`;
       }
     }
   } catch {}
 
   const configuredWs = (process.env.EXPO_PUBLIC_WS_URL || '').trim();
-  const wsRoot = trimTrailingSlash(configuredWs || 'ws://localhost:3001');
-  return wsRoot.endsWith('/api/v1') ? wsRoot.replace(/\/api\/v1$/, '') : wsRoot;
+  if (configuredWs && !configuredWs.includes('10.4.1.101')) {
+    const wsRoot = trimTrailingSlash(configuredWs);
+    return wsRoot.replace(/\/api\/v1$/, '');
+  }
+
+  return 'ws://172.18.28.238:3001';
 }
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -126,6 +161,11 @@ export async function apiFetch(
   const baseUrl = getApiBaseUrl();
   const timeoutMs = init?.timeoutMs ?? 15000;
 
+  // Prevent accidental double prefixing if path already starts with /api/v1
+  const targetUrl = normalized.startsWith('/api/v1')
+    ? `${baseUrl.replace(/\/api\/v1$/, '')}${normalized}`
+    : `${baseUrl}${normalized}`;
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -135,7 +175,7 @@ export async function apiFetch(
   }
 
   try {
-    let response = await fetch(`${baseUrl}${normalized}`, {
+    let response = await fetch(targetUrl, {
       ...init,
       signal: controller.signal,
       headers: {
@@ -175,7 +215,7 @@ export async function apiFetch(
             const retryController = new AbortController();
             const retryTimeout = setTimeout(() => retryController.abort(), timeoutMs);
 
-            response = await fetch(`${baseUrl}${normalized}`, {
+            response = await fetch(targetUrl, {
               ...init,
               signal: retryController.signal,
               headers: {

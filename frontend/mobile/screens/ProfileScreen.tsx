@@ -1,5 +1,5 @@
 import { AppText as Text } from '../components/ui/AppText';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -17,6 +17,7 @@ import {
   MapPin,
   HelpCircle,
   LogOut,
+  LogIn,
   ChevronRight,
   User,
   ShoppingBag,
@@ -27,14 +28,20 @@ import {
   Phone,
   ShieldCheck,
   Building2,
+  Sparkles,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from '../i18n';
+import { useTheme } from '../theme/ThemeContext';
 import { Header } from '../components/ui/Header';
 import { AboutAshokRajModal } from '../components/ui/AboutAshokRajModal';
+import { AddressManagerModal } from '../components/ui/AddressManagerModal';
+import { LoyaltyRewardsModal } from '../components/ui/LoyaltyRewardsModal';
 import { Radius, Spacing, FontSize, Palette } from '@ashok-raj/ui';
 
 import { useAuthStore } from '../store/useAuthStore';
+import { useAddressStore } from '../store/useAddressStore';
+import { useLoyaltyStore } from '../store/useLoyaltyStore';
 
 export interface ProfileScreenProps {
   onNavigateToSettings: () => void;
@@ -55,10 +62,21 @@ export function ProfileScreen({
   onNavigateToOffers,
   onSignOut,
 }: ProfileScreenProps) {
+  const { colors } = useTheme();
   const { isTamil, language } = useTranslation();
   const [aboutModalVisible, setAboutModalVisible] = useState(false);
+  const [addressModalVisible, setAddressModalVisible] = useState(false);
+  const [loyaltyModalVisible, setLoyaltyModalVisible] = useState(false);
+
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const { loyalty, fetchLoyalty } = useLoyaltyStore();
+  const { addresses, fetchAddresses } = useAddressStore();
+
+  useEffect(() => {
+    fetchLoyalty();
+    fetchAddresses();
+  }, [fetchLoyalty, fetchAddresses]);
 
   const handleOpenWebsite = () => {
     Haptics.selectionAsync();
@@ -126,7 +144,7 @@ export function ProfileScreen({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
         title={isTamil ? 'சுயவிவரம்' : 'Profile'}
         subtitle={isTamil ? 'என் கணக்கு & விருப்பங்கள்' : 'My Account & Preferences'}
@@ -134,92 +152,164 @@ export function ProfileScreen({
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* User Card */}
-        <View style={styles.userCard}>
-          <View style={styles.avatarWrap}>
-            <Text style={styles.avatarText}>
-              {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AR'}
+        <View
+          style={[
+            styles.userCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.avatarWrap,
+              {
+                backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                borderColor: colors.accent,
+              },
+            ]}
+          >
+            <Text style={[styles.avatarText, { color: colors.accent }]}>
+              {user?.name ? user.name.slice(0, 2).toUpperCase() : 'G'}
             </Text>
           </View>
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>
-              {user?.name || (isTamil ? 'அசோக் விருந்தினர்' : 'Ashok Guest')}
+            <Text style={[styles.userName, { color: colors.textPrimary }]}>
+              {user?.name || (isTamil ? 'விருந்தினர் கணக்கு' : 'Guest Account')}
             </Text>
-            <Text style={styles.userPhone}>
-              {user?.phone ? `+91 ${user.phone}` : '+91 99999 99999'}
+            <Text style={[styles.userPhone, { color: colors.textSecondary }]}>
+              {user?.phone ? (user.phone.startsWith('+') ? user.phone : `+91 ${user.phone}`) : (isTamil ? 'உள்நுழையவில்லை' : 'Not signed in')}
             </Text>
             {user?.email ? (
-              <Text style={styles.userEmail}>{user.email}</Text>
+              <Text style={[styles.userEmail, { color: colors.accent }]}>{user.email}</Text>
             ) : null}
-            <Text style={styles.userLocation}>Kalaiyarkoil, Sivagangai</Text>
+            {addresses.length > 0 ? (
+              <Text style={[styles.userLocation, { color: colors.textTertiary }]}>
+                {(addresses.find((a) => a.isDefault) || addresses[0])?.city || (addresses.find((a) => a.isDefault) || addresses[0])?.addressLine1}
+              </Text>
+            ) : null}
           </View>
         </View>
 
         {/* Loyalty Points Card */}
-        <View style={styles.loyaltyCard}>
+        <TouchableOpacity
+          style={[
+            styles.loyaltyCard,
+            {
+              backgroundColor: 'rgba(37, 99, 235, 0.06)',
+              borderColor: colors.accent,
+            },
+          ]}
+          activeOpacity={0.88}
+          onPress={() => {
+            Haptics.selectionAsync();
+            setLoyaltyModalVisible(true);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="View Loyalty Rewards"
+        >
           <View style={styles.loyaltyHeader}>
             <View style={styles.loyaltyLeft}>
-              <View style={styles.loyaltyIconCircle}>
-                <Award size={22} color="#2563EB" />
+              <View
+                style={[
+                  styles.loyaltyIconCircle,
+                  {
+                    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                  },
+                ]}
+              >
+                <Award size={22} color={colors.accent} />
               </View>
               <View>
-                <Text style={styles.loyaltyTitle}>
+                <Text style={[styles.loyaltyTitle, { color: colors.textPrimary }]}>
                   {isTamil ? 'ரிவார்ட் புள்ளிகள்' : 'Ashok Raj Club'}
                 </Text>
-                <Text style={styles.tierText}>
-                  {isTamil ? 'கோல்ட் உறுப்பினர்' : 'Gold Member'}
+                <Text style={[styles.tierText, { color: colors.accent }]}>
+                  {loyalty?.tier
+                    ? isTamil
+                      ? `${loyalty.tier} உறுப்பினர்`
+                      : `${loyalty.tier} Member`
+                    : isTamil
+                    ? 'அசோக் கிளப்'
+                    : 'Ashok Raj Club'}
                 </Text>
               </View>
             </View>
 
             <View style={styles.pointsWrap}>
-              <Text style={styles.pointsVal}>1,250</Text>
-              <Text style={styles.pointsLabel}>
+              <Text style={[styles.pointsVal, { color: colors.accent }]}>
+                {(loyalty?.points ?? 0).toLocaleString()}
+              </Text>
+              <Text style={[styles.pointsLabel, { color: colors.textSecondary }]}>
                 {isTamil ? 'புள்ளிகள்' : 'Points'}
               </Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Section: Activity & Orders */}
-        <Text style={styles.sectionTitle}>
+        <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>
           {isTamil ? 'என் செயல்பாடுகள்' : 'My Activity'}
         </Text>
-        <View style={styles.menuSection}>
+        <View
+          style={[
+            styles.menuSection,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+            },
+          ]}
+        >
           {/* My Orders */}
           <TouchableOpacity
             onPress={onNavigateToOrders}
-            style={styles.menuItem}
+            style={[styles.menuItem, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="My Orders"
           >
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: '#EFF6FF' }]}>
-                <ShoppingBag size={18} color="#2563EB" />
+              <View
+                style={[
+                  styles.menuIcon,
+                  { backgroundColor: '#EFF6FF' },
+                ]}
+              >
+                <ShoppingBag size={18} color="#3B82F6" />
               </View>
-              <Text style={styles.menuText}>
+              <Text style={[styles.menuText, { color: colors.textPrimary }]}>
                 {isTamil ? 'என் ஆர்டர்கள்' : 'My Orders'}
               </Text>
             </View>
             <View style={styles.menuRight}>
-              <ChevronRight size={16} color="#64748B" />
+              <ChevronRight size={16} color={colors.textTertiary} />
             </View>
           </TouchableOpacity>
 
           {/* My Bookings */}
           <TouchableOpacity
             onPress={onNavigateToBookings}
-            style={styles.menuItem}
+            style={[styles.menuItem, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="My Bookings"
           >
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: '#F4F0FF' }]}>
-                <Calendar size={18} color="#7C3AED" />
+              <View
+                style={[
+                  styles.menuIcon,
+                  { backgroundColor: '#F4F0FF' },
+                ]}
+              >
+                <Calendar size={18} color="#A855F7" />
               </View>
-              <Text style={styles.menuText}>
+              <Text style={[styles.menuText, { color: colors.textPrimary }]}>
                 {isTamil ? 'என் பதிவுகள்' : 'My Bookings'}
               </Text>
             </View>
             <View style={styles.menuRight}>
-              <ChevronRight size={16} color="#64748B" />
+              <ChevronRight size={16} color={colors.textTertiary} />
             </View>
           </TouchableOpacity>
 
@@ -228,91 +318,127 @@ export function ProfileScreen({
             onPress={onNavigateToOffers}
             style={[styles.menuItem, { borderBottomWidth: 0 }]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Offers and Coupons"
           >
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: '#FFF1F6' }]}>
-                <Tag size={18} color="#DB2777" />
+              <View
+                style={[
+                  styles.menuIcon,
+                  { backgroundColor: 'rgba(37, 99, 235, 0.1)' },
+                ]}
+              >
+                <Tag size={18} color={colors.accent} />
               </View>
-              <Text style={styles.menuText}>
+              <Text style={[styles.menuText, { color: colors.textPrimary }]}>
                 {isTamil ? 'சலுகைகள் & கூப்பன்கள்' : 'Offers & Coupons'}
               </Text>
             </View>
             <View style={styles.menuRight}>
-              <ChevronRight size={16} color="#64748B" />
+              <ChevronRight size={16} color={colors.textTertiary} />
             </View>
           </TouchableOpacity>
         </View>
 
         {/* Section: AshokRaj Groups & Official Links */}
-        <Text style={styles.sectionTitle}>
+        <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>
           {isTamil ? 'அசோக் ராஜ் குழுமம்' : 'AshokRaj Groups'}
         </Text>
-        <View style={styles.menuSection}>
+        <View
+          style={[
+            styles.menuSection,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+            },
+          ]}
+        >
           {/* About AshokRaj Groups */}
           <TouchableOpacity
             onPress={() => {
               Haptics.selectionAsync();
               setAboutModalVisible(true);
             }}
-            style={styles.menuItem}
+            style={[styles.menuItem, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="About AshokRaj Groups"
           >
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Building2 size={18} color="#2563EB" />
+              <View
+                style={[
+                  styles.menuIcon,
+                  { backgroundColor: 'rgba(37, 99, 235, 0.1)' },
+                ]}
+              >
+                <Building2 size={18} color={colors.accent} />
               </View>
               <View>
-                <Text style={styles.menuText}>
+                <Text style={[styles.menuText, { color: colors.textPrimary }]}>
                   {isTamil ? 'அசோக் ராஜ் குழுமம் பற்றி' : 'About AshokRaj Groups'}
                 </Text>
-                <Text style={styles.menuSubText}>
+                <Text style={[styles.menuSubText, { color: colors.textTertiary }]}>
                   Restaurant • Pure Veg • Bakery • Lodge • Mini Hall
                 </Text>
               </View>
             </View>
             <View style={styles.menuRight}>
-              <ChevronRight size={16} color="#64748B" />
+              <ChevronRight size={16} color={colors.textTertiary} />
             </View>
           </TouchableOpacity>
 
           {/* Visit Official Website */}
           <TouchableOpacity
             onPress={handleOpenWebsite}
-            style={styles.menuItem}
+            style={[styles.menuItem, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Visit Official Website"
           >
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: '#ECFDF5' }]}>
-                <ExternalLink size={18} color="#059669" />
+              <View
+                style={[
+                  styles.menuIcon,
+                  { backgroundColor: '#ECFDF5' },
+                ]}
+              >
+                <ExternalLink size={18} color="#10B981" />
               </View>
               <View>
-                <Text style={[styles.menuText, { color: '#059669', fontWeight: '700' }]}>
+                <Text style={[styles.menuText, { color: '#10B981', fontWeight: '700' }]}>
                   {isTamil ? 'அதிகாரப்பூர்வ இணையதளம் செல்க' : 'Visit Official Website'}
                 </Text>
-                <Text style={styles.menuSubText}>ashokrajgroups.com</Text>
+                <Text style={[styles.menuSubText, { color: colors.textTertiary }]}>ashokrajgroups.com</Text>
               </View>
             </View>
             <View style={styles.menuRight}>
-              <ExternalLink size={16} color="#059669" />
+              <ExternalLink size={16} color="#10B981" />
             </View>
           </TouchableOpacity>
 
           {/* Contact Us */}
           <TouchableOpacity
             onPress={handleContactUs}
-            style={styles.menuItem}
+            style={[styles.menuItem, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Contact Us"
           >
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Phone size={18} color="#2563EB" />
+              <View
+                style={[
+                  styles.menuIcon,
+                  { backgroundColor: '#EFF6FF' },
+                ]}
+              >
+                <Phone size={18} color="#3B82F6" />
               </View>
-              <Text style={styles.menuText}>
+              <Text style={[styles.menuText, { color: colors.textPrimary }]}>
                 {isTamil ? 'தொடர்பு கொள்க' : 'Contact Us'}
               </Text>
             </View>
             <View style={styles.menuRight}>
-              <ChevronRight size={16} color="#64748B" />
+              <ChevronRight size={16} color={colors.textTertiary} />
             </View>
           </TouchableOpacity>
 
@@ -321,102 +447,206 @@ export function ProfileScreen({
             onPress={handleTermsAndPrivacy}
             style={[styles.menuItem, { borderBottomWidth: 0 }]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Terms and Privacy"
           >
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: '#F8FAFC' }]}>
-                <ShieldCheck size={18} color="#475569" />
+              <View
+                style={[
+                  styles.menuIcon,
+                  { backgroundColor: '#F8FAFC' },
+                ]}
+              >
+                <ShieldCheck size={18} color={colors.textSecondary} />
               </View>
-              <Text style={styles.menuText}>
+              <Text style={[styles.menuText, { color: colors.textPrimary }]}>
                 {isTamil ? 'விதிமுறைகள் & தனியுரிமை' : 'Terms & Privacy'}
               </Text>
             </View>
             <View style={styles.menuRight}>
-              <ChevronRight size={16} color="#64748B" />
+              <ChevronRight size={16} color={colors.textTertiary} />
             </View>
           </TouchableOpacity>
         </View>
 
         {/* Section: App Preferences */}
-        <Text style={styles.sectionTitle}>
+        <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>
           {isTamil ? 'அமைப்புகள்' : 'Preferences'}
         </Text>
-        <View style={styles.menuSection}>
+        <View
+          style={[
+            styles.menuSection,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          {/* Settings */}
+          <TouchableOpacity
+            onPress={onNavigateToSettings}
+            style={[styles.menuItem, { borderBottomColor: colors.border }]}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+          >
+            <View style={styles.menuLeft}>
+              <View
+                style={[
+                  styles.menuIcon,
+                  { backgroundColor: 'rgba(37, 99, 235, 0.1)' },
+                ]}
+              >
+                <Settings size={18} color={colors.accent} />
+              </View>
+              <View>
+                <Text style={[styles.menuText, { color: colors.textPrimary }]}>
+                  {isTamil ? 'பயன்பாட்டு அமைப்புகள்' : 'Settings'}
+                </Text>
+                <Text style={[styles.menuSubText, { color: colors.textTertiary }]}>
+                  {isTamil ? 'அமைப்புகள் & இணைப்பு' : 'Preferences & Connection'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.menuRight}>
+              <ChevronRight size={16} color={colors.textTertiary} />
+            </View>
+          </TouchableOpacity>
+
           {/* Language Switch */}
           <TouchableOpacity
             onPress={onNavigateToLanguage}
-            style={styles.menuItem}
+            style={[styles.menuItem, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Change Language"
           >
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Globe size={18} color="#2563EB" />
+              <View
+                style={[
+                  styles.menuIcon,
+                  { backgroundColor: '#EFF6FF' },
+                ]}
+              >
+                <Globe size={18} color="#3B82F6" />
               </View>
-              <Text style={styles.menuText}>
+              <Text style={[styles.menuText, { color: colors.textPrimary }]}>
                 {isTamil ? 'மொழி' : 'Language'}
               </Text>
             </View>
             <View style={styles.menuRight}>
-              <Text style={styles.menuVal}>
+              <Text style={[styles.menuVal, { color: colors.accent }]}>
                 {language === 'ta' ? 'தமிழ்' : 'English'}
               </Text>
-              <ChevronRight size={16} color="#64748B" />
+              <ChevronRight size={16} color={colors.textTertiary} />
             </View>
           </TouchableOpacity>
 
           {/* Notifications */}
           <TouchableOpacity
             onPress={onNavigateToNotifications}
-            style={styles.menuItem}
+            style={[styles.menuItem, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
           >
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Bell size={18} color="#2563EB" />
+              <View
+                style={[
+                  styles.menuIcon,
+                  { backgroundColor: '#EFF6FF' },
+                ]}
+              >
+                <Bell size={18} color="#3B82F6" />
               </View>
-              <Text style={styles.menuText}>
+              <Text style={[styles.menuText, { color: colors.textPrimary }]}>
                 {isTamil ? 'அறிவிப்புகள்' : 'Notifications'}
               </Text>
             </View>
             <View style={styles.menuRight}>
-              <ChevronRight size={16} color="#64748B" />
+              <ChevronRight size={16} color={colors.textTertiary} />
             </View>
           </TouchableOpacity>
 
           {/* Saved Addresses */}
           <TouchableOpacity
-            onPress={onNavigateToSettings}
+            onPress={() => {
+              Haptics.selectionAsync();
+              setAddressModalVisible(true);
+            }}
             style={[styles.menuItem, { borderBottomWidth: 0 }]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Saved Addresses"
           >
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: '#F0FDF4' }]}>
-                <MapPin size={18} color="#16A34A" />
+              <View
+                style={[
+                  styles.menuIcon,
+                  { backgroundColor: '#F0FDF4' },
+                ]}
+              >
+                <MapPin size={18} color="#10B981" />
               </View>
-              <Text style={styles.menuText}>
+              <Text style={[styles.menuText, { color: colors.textPrimary }]}>
                 {isTamil ? 'சேமிக்கப்பட்ட முகவரிகள்' : 'Saved Addresses'}
               </Text>
             </View>
             <View style={styles.menuRight}>
-              <ChevronRight size={16} color="#64748B" />
+              {addresses.length > 0 ? (
+                <Text style={[styles.menuVal, { color: colors.accent }]}>
+                  {`${addresses.length} ${isTamil ? 'முகவரிகள்' : 'saved'}`}
+                </Text>
+              ) : null}
+              <ChevronRight size={16} color={colors.textTertiary} />
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Sign Out Button */}
-        <TouchableOpacity
-          onPress={handleSignOut}
-          style={styles.signOutBtn}
-          activeOpacity={0.8}
-        >
-          <LogOut size={18} color="#EF4444" />
-          <Text style={styles.signOutText}>
-            {isTamil ? 'வெளியேறு' : 'Sign Out'}
-          </Text>
-        </TouchableOpacity>
+        {/* Sign In / Sign Out Button */}
+        {user ? (
+          <TouchableOpacity
+            onPress={handleSignOut}
+            style={[
+              styles.signOutBtn,
+              {
+                backgroundColor: '#FEF2F2',
+                borderColor: '#FEE2E2',
+              },
+            ]}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Sign Out"
+          >
+            <LogOut size={18} color="#EF4444" />
+            <Text style={styles.signOutText}>
+              {isTamil ? 'வெளியேறு' : 'Sign Out'}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            onPress={onSignOut}
+            style={[
+              styles.signOutBtn,
+              {
+                backgroundColor: colors.accent,
+                borderColor: colors.accent,
+              },
+            ]}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Sign In or Register"
+          >
+            <LogIn size={18} color="#FFFFFF" />
+            <Text style={[styles.signOutText, { color: '#FFFFFF' }]}>
+              {isTamil ? 'உள்நுழைக / பதிவு செய்க' : 'Sign In / Register'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* App Version */}
-        <Text style={styles.versionText}>
-          Ashok Raj Groups • Official App v0.0.1
+        <Text style={[styles.versionText, { color: colors.textTertiary }]}>
+          Ashok Raj Groups • Official App v1.0.0
         </Text>
       </ScrollView>
 
@@ -425,6 +655,18 @@ export function ProfileScreen({
         visible={aboutModalVisible}
         onClose={() => setAboutModalVisible(false)}
       />
+
+      {/* Address Manager Modal */}
+      <AddressManagerModal
+        visible={addressModalVisible}
+        onClose={() => setAddressModalVisible(false)}
+      />
+
+      {/* Loyalty Rewards Modal */}
+      <LoyaltyRewardsModal
+        visible={loyaltyModalVisible}
+        onClose={() => setLoyaltyModalVisible(false)}
+      />
     </View>
   );
 }
@@ -432,7 +674,6 @@ export function ProfileScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
     padding: Spacing.base,
@@ -442,20 +683,18 @@ const styles = StyleSheet.create({
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: Radius['2xl'],
     padding: Spacing.base,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     gap: Spacing.md,
     ...Platform.select({
       web: {
-        boxShadow: '0 2px 10px rgba(15, 23, 42, 0.04)',
+        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.08)',
       },
       default: {
-        shadowColor: '#0F172A',
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
+        shadowOpacity: 0.08,
         shadowRadius: 8,
         elevation: 2,
       },
@@ -465,45 +704,36 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#EFF6FF',
     borderWidth: 2,
-    borderColor: '#BFDBFE',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#2563EB',
   },
   userInfo: {
     flex: 1,
     gap: 2,
   },
   userName: {
-    fontSize: 17,
+    fontSize: FontSize.lg,
     fontWeight: '800',
-    color: '#0F172A',
   },
   userPhone: {
-    fontSize: 13,
-    color: '#475569',
+    fontSize: FontSize.sm,
   },
   userEmail: {
-    fontSize: 12,
-    color: '#2563EB',
+    fontSize: FontSize.xs,
     fontWeight: '500',
   },
   userLocation: {
     fontSize: 11,
-    color: '#475569',
   },
   loyaltyCard: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 20,
+    borderRadius: Radius['2xl'],
     padding: Spacing.base,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
   },
   loyaltyHeader: {
     flexDirection: 'row',
@@ -519,46 +749,38 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#DBEAFE',
     justifyContent: 'center',
     alignItems: 'center',
   },
   loyaltyTitle: {
-    fontSize: 14,
+    fontSize: FontSize.sm + 1,
     fontWeight: '800',
-    color: '#1E40AF',
   },
   tierText: {
-    fontSize: 12,
-    color: '#2563EB',
+    fontSize: FontSize.xs,
     fontWeight: '600',
   },
   pointsWrap: {
     alignItems: 'flex-end',
   },
   pointsVal: {
-    fontSize: 20,
+    fontSize: FontSize.xl,
     fontWeight: '900',
-    color: '#1E40AF',
   },
   pointsLabel: {
     fontSize: 11,
-    color: '#475569',
   },
   sectionTitle: {
     fontSize: FontSize.xs + 1,
     fontWeight: '700',
-    color: '#475569',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginTop: Spacing.sm,
     marginBottom: 2,
   },
   menuSection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: Radius['2xl'],
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     overflow: 'hidden',
   },
   menuItem: {
@@ -567,8 +789,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.base,
     paddingVertical: 14,
+    minHeight: 48,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
   },
   menuLeft: {
     flexDirection: 'row',
@@ -584,14 +806,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   menuText: {
-    fontSize: 14,
+    fontSize: FontSize.sm,
     fontWeight: '600',
-    color: '#0F172A',
   },
   menuSubText: {
     fontSize: 11,
-    color: '#334155',
-    fontWeight: '600',
+    fontWeight: '500',
     marginTop: 1,
   },
   menuRight: {
@@ -600,8 +820,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   menuVal: {
-    fontSize: 13,
-    color: '#2563EB',
+    fontSize: FontSize.sm,
     fontWeight: '600',
   },
   signOutBtn: {
@@ -609,22 +828,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FEF2F2',
+    minHeight: 48,
     paddingVertical: 14,
-    borderRadius: 16,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
     marginTop: 4,
   },
   signOutText: {
     color: '#EF4444',
-    fontSize: 14,
+    fontSize: FontSize.sm,
     fontWeight: '700',
   },
   versionText: {
     textAlign: 'center',
     fontSize: 11,
-    color: '#334155',
     fontWeight: '600',
     marginTop: 6,
   },

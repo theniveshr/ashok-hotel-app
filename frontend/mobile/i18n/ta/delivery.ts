@@ -10,7 +10,7 @@ export const delivery = {
   minOrderAmount: 'டெலிவரிக்கு குறைந்தபட்ச ஆர்டர் ₹{{amount}}',
   minOrderNotMet: 'இந்த பகுதிக்கு குறைந்தபட்ச ஆர்டர் ₹{{amount}}. மேலும் ₹{{diff}} சேர்க்கவும்.',
   addMoreForFreeDelivery: 'இலவச டெலிவரி பெற மேலும் ₹{{amount}} சேர்க்கவும்!',
-  freeDeliveryUnlocked: '🎉 இலவச டெலிவரி பெற்றுவிட்டீர்கள்!',
+  freeDeliveryUnlocked: 'இலவச டெலிவரி பெற்றுவிட்டீர்கள்!',
   estimatedTime: 'தோராயமாக {{minutes}} நிமிடம்',
   trackDelivery: 'டெலிவரியை கண்காணிக்கவும்',
   deliveryTracking: 'டெலிவரி கண்காணிப்பு',

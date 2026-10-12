@@ -7,7 +7,7 @@ import {
   TextInput,
   TouchableOpacity
 } from 'react-native';
-import { Trash2, Tag, ArrowRight, Bike, ShoppingBag, UtensilsCrossed, Check } from 'lucide-react-native';
+import { Trash2, Tag, ArrowRight, Bike, ShoppingBag, UtensilsCrossed, Check, FileText } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useTranslation } from '../i18n';
 import { Header } from '../components/ui/Header';
@@ -162,11 +162,14 @@ export function CartScreen({
                     </Text>
                   )}
                   {item.notes ? (
-                    <Text style={[styles.itemNote, { color: colors.textTertiary }]}>
-                      📝 "{item.notes}"
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                      <FileText size={12} color={colors.textTertiary} />
+                      <Text style={[styles.itemNote, { color: colors.textTertiary }]}>
+                        "{item.notes}"
+                      </Text>
+                    </View>
                   ) : null}
-                  <Text style={[styles.itemPrice, { color: Palette.blue700 }]}>
+                  <Text style={[styles.itemPrice, { color: colors.accent }]}>
                     ₹{(Number(item.price ?? 0) * item.quantity).toFixed(0)}
                   </Text>
                 </View>

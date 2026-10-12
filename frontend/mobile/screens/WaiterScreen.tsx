@@ -21,6 +21,7 @@ import {
   Sparkles,
   Plus,
   RefreshCw,
+  ClipboardList,
 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useTranslation } from '../i18n';
@@ -79,66 +80,19 @@ export function WaiterScreen({ onBack }: WaiterScreenProps) {
   const [tables, setTables] = useState<MockTable[]>([
     { id: '1', tableNumber: '01', floor: 1, capacity: 2, status: 'AVAILABLE', isAc: false },
     { id: '2', tableNumber: '02', floor: 1, capacity: 2, status: 'AVAILABLE', isAc: false },
-    {
-      id: '3',
-      tableNumber: '03',
-      floor: 1,
-      capacity: 4,
-      status: 'OCCUPIED',
-      isAc: true,
-      guestCount: 3,
-      sessionMins: 35,
-      totalAmount: 480,
-      hasCall: true,
-      callType: 'WATER',
-      callNote: 'Warm drinking water',
-    },
-    {
-      id: '4',
-      tableNumber: '04',
-      floor: 1,
-      capacity: 4,
-      status: 'OCCUPIED',
-      isAc: true,
-      guestCount: 2,
-      sessionMins: 18,
-      totalAmount: 675,
-    },
+    { id: '3', tableNumber: '03', floor: 1, capacity: 4, status: 'AVAILABLE', isAc: true },
+    { id: '4', tableNumber: '04', floor: 1, capacity: 4, status: 'AVAILABLE', isAc: true },
     { id: '5', tableNumber: '05', floor: 1, capacity: 4, status: 'AVAILABLE', isAc: true },
-    { id: '6', tableNumber: '06', floor: 1, capacity: 6, status: 'RESERVED', isAc: false },
-    { id: '7', tableNumber: '07', floor: 1, capacity: 6, status: 'CLEANING', isAc: false },
-    {
-      id: '8',
-      tableNumber: '08',
-      floor: 1,
-      capacity: 6,
-      status: 'OCCUPIED',
-      isAc: false,
-      guestCount: 4,
-      sessionMins: 45,
-      totalAmount: 1120,
-      hasCall: true,
-      callType: 'BILL',
-      callNote: 'Bill with UPI QR',
-    },
+    { id: '6', tableNumber: '06', floor: 1, capacity: 6, status: 'AVAILABLE', isAc: false },
+    { id: '7', tableNumber: '07', floor: 1, capacity: 6, status: 'AVAILABLE', isAc: false },
+    { id: '8', tableNumber: '08', floor: 1, capacity: 6, status: 'AVAILABLE', isAc: false },
     { id: '9', tableNumber: '09', floor: 2, capacity: 4, status: 'AVAILABLE', isAc: true },
     { id: '10', tableNumber: '10', floor: 2, capacity: 4, status: 'AVAILABLE', isAc: true },
     { id: '11', tableNumber: '11', floor: 2, capacity: 8, status: 'AVAILABLE', isAc: true },
     { id: '12', tableNumber: '12', floor: 2, capacity: 8, status: 'AVAILABLE', isAc: true },
   ]);
 
-  const [readyOrders, setReadyOrders] = useState<MockReadyOrder[]>([
-    {
-      id: 'ro-1',
-      orderNumber: 'AR-TBL-0802',
-      tableNumber: '08',
-      readyMinsAgo: 2,
-      items: [
-        { name: 'Chettinad Special Chicken Biryani', nameTa: 'செட்டிநாடு சிக்கன் பிரியாணி', qty: 2 },
-        { name: 'Kalaiyarkoil Special Filter Coffee', nameTa: 'காளையார்கோவில் ஃபில்டர் காபி', qty: 2 },
-      ],
-    },
-  ]);
+  const [readyOrders, setReadyOrders] = useState<MockReadyOrder[]>([]);
 
   // Modals
   const [selectedTableForOrder, setSelectedTableForOrder] = useState<MockTable | null>(null);
@@ -412,9 +366,10 @@ export function WaiterScreen({ onBack }: WaiterScreenProps) {
                         </Text>
                       </View>
                     ) : (
-                      <View style={styles.emptyInfo}>
+                      <View style={[styles.emptyInfo, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                        {isCleaning && <Sparkles size={11} color={colors.textTertiary} />}
                         <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
-                          {isCleaning ? '🧹 Needs Cleaning' : `Cap: ${tbl.capacity}`}
+                          {isCleaning ? 'Needs Cleaning' : `Cap: ${tbl.capacity}`}
                         </Text>
                       </View>
                     )}
@@ -568,9 +523,12 @@ export function WaiterScreen({ onBack }: WaiterScreenProps) {
         <Modal transparent animationType="fade" visible={!!selectedTableForOrder}>
           <View style={styles.modalOverlay}>
             <View style={[styles.modalBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
-                📝 Table #{selectedTableForOrder.tableNumber} — {t.takeOrder}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <ClipboardList size={18} color={colors.accent} />
+                <Text style={[styles.modalTitle, { color: colors.textPrimary, marginBottom: 0 }]}>
+                  Table #{selectedTableForOrder.tableNumber} — {t.takeOrder}
+                </Text>
+              </View>
 
               <Text style={[styles.fieldLabel, { color: colors.textTertiary }]}>Dish Name</Text>
               <TextInput

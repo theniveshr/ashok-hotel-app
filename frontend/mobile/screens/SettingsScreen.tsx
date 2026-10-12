@@ -5,13 +5,11 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  Switch,
   TextInput,
   ActivityIndicator,
 } from 'react-native';
 import {
   Globe,
-  Moon,
   Bell,
   Shield,
   FileText,
@@ -44,7 +42,7 @@ export function SettingsScreen({
   onBack,
   onNavigateToLanguage,
 }: SettingsScreenProps) {
-  const { colors, isDark, toggleMode, mode, setMode } = useTheme();
+  const { colors } = useTheme();
   const { t, isTamil, language } = useTranslation();
 
   const [currentUrl, setCurrentUrl] = useState<string>(getApiBaseUrl());
@@ -106,49 +104,6 @@ export function SettingsScreen({
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Appearance Section */}
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-          {isTamil ? 'தோற்றம் (Appearance)' : 'Appearance & Theme'}
-        </Text>
-
-        <View style={styles.settingsGroup}>
-          <View
-            style={[
-              styles.settingItem,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <View style={styles.itemLeft}>
-              <View style={[styles.iconWrap, { backgroundColor: 'rgba(204, 146, 0, 0.15)' }]}>
-                <Moon size={18} color={colors.accent} />
-              </View>
-              <View>
-                <Text style={[styles.itemTitle, { color: colors.textPrimary }]}>
-                  {isTamil ? 'இரவு பயன்முறை (Dark Mode)' : 'Dark Luxury Theme'}
-                </Text>
-                <Text style={[styles.itemSub, { color: colors.textTertiary }]}>
-                  {isDark
-                    ? isTamil
-                      ? 'செயலில் உள்ளது'
-                      : 'Enabled'
-                    : isTamil
-                    ? 'முடக்கப்பட்டது'
-                    : 'Disabled'}
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={isDark}
-              onValueChange={toggleMode}
-              trackColor={{ false: colors.border, true: colors.accent }}
-              thumbColor={Palette.white}
-            />
-          </View>
-        </View>
-
         {/* Language Section */}
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
           {t('settings.language')}
@@ -340,7 +295,7 @@ export function SettingsScreen({
                   color: colors.textPrimary,
                 },
               ]}
-              placeholder="e.g. http://10.4.1.101:3001 or https://tunnel.ngrok.app"
+              placeholder="e.g. http://172.18.28.238:3001 or https://tunnel.ngrok.app"
               placeholderTextColor={colors.textTertiary}
               value={customInput}
               onChangeText={setCustomInput}
@@ -357,7 +312,7 @@ export function SettingsScreen({
               style={[styles.actionBtn, { backgroundColor: colors.accent, flex: 1 }]}
               onPress={handleSaveCustomUrl}
             >
-              <Text style={{ color: '#000000', fontWeight: '700', fontSize: FontSize.xs + 1 }}>
+              <Text style={{ color: Palette.white, fontWeight: '700', fontSize: FontSize.xs + 1 }}>
                 Save URL
               </Text>
             </TouchableOpacity>
@@ -459,6 +414,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
   actionBtn: {
+    minHeight: 44,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: Radius.md,

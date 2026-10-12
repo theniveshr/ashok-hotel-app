@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Room, RoomType, RoomStatus, FrontDeskRackSummary, RoomMaintenance, Booking, BookingGuest } from '@ashok-raj/types';
 import { LODGE } from '@ashok-raj/config';
 
@@ -59,6 +59,47 @@ export default function LodgeConsolePage() {
   };
 
   const todayStr = '2026-08-28';
+
+  const updateRackSummary = useCallback((rooms: Room[], types: RoomType[]) => {
+    const floorMap = new Map<number, Room[]>();
+    rooms.forEach((r) => {
+      const list = floorMap.get(r.floor) || [];
+      list.push({
+        ...r,
+        type: types.find((t) => t.id === r.typeId),
+      });
+      floorMap.set(r.floor, list);
+    });
+
+    const floors = Array.from(floorMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([floorNumber, rList]) => ({
+        floorNumber,
+        floorName: floorNumber === 1 ? 'Ground Floor (தரைத்தளம்)' : `Floor ${floorNumber} (${floorNumber}-ஆம் தளம்)`,
+        rooms: rList.sort((a, b) => a.roomNumber.localeCompare(b.roomNumber)),
+      }));
+
+    const statusCounts = {
+      totalRooms: rooms.length,
+      available: rooms.filter((r) => r.status === 'AVAILABLE').length,
+      reserved: rooms.filter((r) => r.status === 'RESERVED').length,
+      occupied: rooms.filter((r) => r.status === 'OCCUPIED').length,
+      cleaning: rooms.filter((r) => r.status === 'CLEANING').length,
+      inspected: rooms.filter((r) => r.status === 'INSPECTED').length,
+      maintenance: rooms.filter((r) => r.status === 'MAINTENANCE').length,
+      blocked: rooms.filter((r) => r.status === 'BLOCKED').length,
+    };
+
+    const occupancyRate = statusCounts.totalRooms > 0
+      ? Math.round(((statusCounts.occupied + statusCounts.reserved) / statusCounts.totalRooms) * 100)
+      : 0;
+
+    setSummary({
+      ...statusCounts,
+      occupancyRate,
+      floors,
+    });
+  }, []);
 
   // Initialize Sample Front-Desk Data
   useEffect(() => {
@@ -249,48 +290,7 @@ export default function LodgeConsolePage() {
         updatedAt: new Date().toISOString(),
       },
     ]);
-  }, []);
-
-  const updateRackSummary = (rooms: Room[], types: RoomType[]) => {
-    const floorMap = new Map<number, Room[]>();
-    rooms.forEach((r) => {
-      const list = floorMap.get(r.floor) || [];
-      list.push({
-        ...r,
-        type: types.find((t) => t.id === r.typeId),
-      });
-      floorMap.set(r.floor, list);
-    });
-
-    const floors = Array.from(floorMap.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([floorNumber, rList]) => ({
-        floorNumber,
-        floorName: floorNumber === 1 ? 'Ground Floor (தரைத்தளம்)' : `Floor ${floorNumber} (${floorNumber}-ஆம் தளம்)`,
-        rooms: rList.sort((a, b) => a.roomNumber.localeCompare(b.roomNumber)),
-      }));
-
-    const statusCounts = {
-      totalRooms: rooms.length,
-      available: rooms.filter((r) => r.status === 'AVAILABLE').length,
-      reserved: rooms.filter((r) => r.status === 'RESERVED').length,
-      occupied: rooms.filter((r) => r.status === 'OCCUPIED').length,
-      cleaning: rooms.filter((r) => r.status === 'CLEANING').length,
-      inspected: rooms.filter((r) => r.status === 'INSPECTED').length,
-      maintenance: rooms.filter((r) => r.status === 'MAINTENANCE').length,
-      blocked: rooms.filter((r) => r.status === 'BLOCKED').length,
-    };
-
-    const occupancyRate = statusCounts.totalRooms > 0
-      ? Math.round(((statusCounts.occupied + statusCounts.reserved) / statusCounts.totalRooms) * 100)
-      : 0;
-
-    setSummary({
-      ...statusCounts,
-      occupancyRate,
-      floors,
-    });
-  };
+  }, [updateRackSummary]);
 
   // ── STAFF ACTIONS ──────────────────────────────────────────────────────────
 

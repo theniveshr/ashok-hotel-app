@@ -70,6 +70,14 @@ export const lodgeRoutes: FastifyPluginAsync = async (app) => {
     }
   };
 
+  // Helper: Normalize Room Type ID (aliases to canonical)
+  const normalizeRoomTypeId = (id: string): string => {
+    if (id === 'rt-standard-ac') return 'rt-single-ac';
+    if (id === 'rt-deluxe-ac') return 'rt-double-ac';
+    if (id === 'rt-family-suite') return 'rt-six-bed-suite';
+    return id;
+  };
+
   // Initialize Default Lodge Inventory Data
   const initLodgeData = () => {
     if (inMemoryRoomTypes.size === 0) {
@@ -119,24 +127,24 @@ export const lodgeRoutes: FastifyPluginAsync = async (app) => {
       // Seed 14 Rooms across 3 floors with diverse 7 operational states
       const sampleRooms: Array<{ number: string; floor: number; typeId: string; status: RoomStatus; notes?: string }> = [
         // Floor 1 (Ground)
-        { number: '101', floor: 1, typeId: 'rt-standard-ac', status: 'AVAILABLE', notes: 'Near Lobby & Garden' },
-        { number: '102', floor: 1, typeId: 'rt-standard-ac', status: 'OCCUPIED', notes: 'Checked in today, 2 guests' },
-        { number: '103', floor: 1, typeId: 'rt-deluxe-ac', status: 'CLEANING', notes: 'Guest checked out 11:00 AM' },
-        { number: '104', floor: 1, typeId: 'rt-deluxe-ac', status: 'INSPECTED', notes: 'Linen fresh, ready for clearance' },
-        { number: '105', floor: 1, typeId: 'rt-family-suite', status: 'RESERVED', notes: 'Arrival expected at 04:00 PM' },
+        { number: '101', floor: 1, typeId: 'rt-single-ac', status: 'AVAILABLE', notes: 'Near Lobby & Garden' },
+        { number: '102', floor: 1, typeId: 'rt-single-non-ac', status: 'OCCUPIED', notes: 'Checked in today, 1 guest' },
+        { number: '103', floor: 1, typeId: 'rt-double-ac', status: 'CLEANING', notes: 'Guest checked out 11:00 AM' },
+        { number: '104', floor: 1, typeId: 'rt-double-ac', status: 'INSPECTED', notes: 'Linen fresh, ready for clearance' },
+        { number: '105', floor: 1, typeId: 'rt-six-bed-suite', status: 'RESERVED', notes: 'Arrival expected at 04:00 PM' },
 
         // Floor 2
-        { number: '201', floor: 2, typeId: 'rt-deluxe-ac', status: 'AVAILABLE', notes: 'Pool Facing' },
-        { number: '202', floor: 2, typeId: 'rt-deluxe-ac', status: 'OCCUPIED', notes: 'VIP Guest' },
-        { number: '203', floor: 2, typeId: 'rt-standard-ac', status: 'MAINTENANCE', notes: 'AC thermostat servicing' },
-        { number: '204', floor: 2, typeId: 'rt-standard-ac', status: 'AVAILABLE' },
-        { number: '205', floor: 2, typeId: 'rt-family-suite', status: 'OCCUPIED', notes: 'Family 4 guests' },
+        { number: '201', floor: 2, typeId: 'rt-double-ac', status: 'AVAILABLE', notes: 'Pool Facing' },
+        { number: '202', floor: 2, typeId: 'rt-double-ac', status: 'OCCUPIED', notes: 'VIP Guest' },
+        { number: '203', floor: 2, typeId: 'rt-single-ac', status: 'MAINTENANCE', notes: 'AC thermostat servicing' },
+        { number: '204', floor: 2, typeId: 'rt-single-ac', status: 'AVAILABLE' },
+        { number: '205', floor: 2, typeId: 'rt-six-bed-suite', status: 'OCCUPIED', notes: 'Family 4 guests' },
 
         // Floor 3
-        { number: '301', floor: 3, typeId: 'rt-family-suite', status: 'AVAILABLE', notes: 'Highway View Top Floor' },
-        { number: '302', floor: 3, typeId: 'rt-deluxe-ac', status: 'BLOCKED', notes: 'Reserved for group event' },
-        { number: '303', floor: 3, typeId: 'rt-deluxe-ac', status: 'AVAILABLE' },
-        { number: '304', floor: 3, typeId: 'rt-standard-ac', status: 'AVAILABLE' },
+        { number: '301', floor: 3, typeId: 'rt-six-bed-suite', status: 'AVAILABLE', notes: 'Highway View Top Floor' },
+        { number: '302', floor: 3, typeId: 'rt-double-ac', status: 'BLOCKED', notes: 'Reserved for group event' },
+        { number: '303', floor: 3, typeId: 'rt-double-ac', status: 'AVAILABLE' },
+        { number: '304', floor: 3, typeId: 'rt-single-ac', status: 'AVAILABLE' },
       ];
 
       sampleRooms.forEach((sr) => {

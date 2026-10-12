@@ -7,15 +7,17 @@ import {
   TouchableOpacity,
   ActivityIndicator
 } from 'react-native';
-import { MapPin, CreditCard, Banknote, ShieldCheck, Check, Smartphone, Lock } from 'lucide-react-native';
+import { MapPin, CreditCard, Banknote, ShieldCheck, Check, Smartphone, Lock, Sparkles } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useTranslation } from '../i18n';
 import { Header } from '../components/ui/Header';
 import { PrimaryButton } from '../components/ui/PrimaryButton';
 import { PriceSummary } from '../components/ui/PriceSummary';
+import { AddressManagerModal } from '../components/ui/AddressManagerModal';
 import { Radius, Spacing, FontSize, Palette } from '@ashok-raj/ui';
 import { useCartStore } from '../store/useCartStore';
 import { useOrderStore } from '../store/useOrderStore';
+import { useAddressStore } from '../store/useAddressStore';
 import type { PaymentMethod } from '@ashok-raj/types';
 
 export interface CheckoutScreenProps {
@@ -31,11 +33,13 @@ export function CheckoutScreen({
   const { t, isTamil } = useTranslation();
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>('RAZORPAY');
   const [loading, setLoading] = useState(false);
+  const [addressModalVisible, setAddressModalVisible] = useState(false);
 
   const {
     items,
     deliveryType,
     selectedAddress,
+    setSelectedAddress,
     specialInstructions,
     couponCode,
     discountAmount,
@@ -55,41 +59,47 @@ export function CheckoutScreen({
   const handlePlaceOrder = async () => {
     setLoading(true);
 
-    const payload = {
-      type: deliveryType,
-      items: items.map((it) => ({
-        menuItemId: it.id,
-        quantity: it.quantity,
-        name: it.name,
-        nameTa: it.nameTa,
-        price: it.price,
-        addons: (it.addons || []).map((ad: any) =>
-          typeof ad === 'object'
-            ? { addonId: ad.id, name: ad.name, nameTa: ad.nameTa, price: ad.price }
-            : { addonId: 'addon-default', name: ad, price: 20 }
-        ),
-        note: it.notes,
-      })),
-      deliveryAddressId: selectedAddress?.id,
-      deliveryAddress: selectedAddress
-        ? {
-            line1: selectedAddress.line1,
-            line2: selectedAddress.line2,
-            city: selectedAddress.city,
-            pincode: selectedAddress.pincode,
-          }
-        : undefined,
-      couponCode: couponCode || undefined,
-      notes: specialInstructions || undefined,
-      paymentMethod: selectedPayment,
-    };
+    try {
+      const payload = {
+        type: deliveryType,
+        items: items.map((it) => ({
+          menuItemId: it.id,
+          quantity: it.quantity,
+          name: it.name,
+          nameTa: it.nameTa,
+          price: it.price,
+          addons: (it.addons || []).map((ad: any) => ({
+            addonId: typeof ad === 'object' ? ad.id : 'addon-default',
+            quantity: 1,
+          })),
+          note: it.notes,
+        })),
+        deliveryAddressId: selectedAddress?.id,
+        deliveryAddress: selectedAddress
+          ? {
+              line1: selectedAddress.line1,
+              line2: selectedAddress.line2,
+              city: selectedAddress.city,
+              pincode: selectedAddress.pincode,
+            }
+          : undefined,
+        couponCode: couponCode || undefined,
+        notes: specialInstructions || undefined,
+        paymentMethod: selectedPayment,
+      };
 
-    const createdOrder = await placeOrder(payload);
-    setLoading(false);
+      const createdOrder = await placeOrder(payload);
+      setLoading(false);
 
-    if (createdOrder) {
-      clearCart();
-      onOrderSuccess();
+      if (createdOrder) {
+        clearCart();
+        onOrderSuccess();
+      } else {
+        alert(isTamil ? 'ஆர்டர் செய்வதில் சிக்கல் ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.' : 'Unable to place order. Please check your items and try again.');
+      }
+    } catch {
+      setLoading(false);
+      alert(isTamil ? 'ஆர்டர் செய்வதில் பிழை ஏற்பட்டது.' : 'An error occurred while placing order.');
     }
   };
 
@@ -131,6 +141,20 @@ export function CheckoutScreen({
                     </Text>
                   </View>
                 </View>
+                <TouchableOpacity
+                  onPress={() => setAddressModalVisible(true)}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    backgroundColor: '#EFF6FF',
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: Palette.blue700, fontWeight: '700', fontSize: 13 }}>
+                    {isTamil ? 'மாற்ற' : 'Change'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -152,21 +176,26 @@ export function CheckoutScreen({
             style={[
               styles.freeDeliveryBanner,
               {
-                backgroundColor: subtotal >= 250 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(204, 146, 0, 0.12)',
-                borderColor: subtotal >= 250 ? Palette.emerald500 : Palette.blue700,
+                backgroundColor: subtotal >= 250 ? '#ECFDF5' : '#EFF6FF',
+                borderColor: subtotal >= 250 ? Palette.emerald500 : colors.accent,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
               },
             ]}
           >
+            {subtotal >= 250 && <Sparkles size={16} color={Palette.emerald500} />}
             <Text
               style={[
                 styles.freeDeliveryText,
-                { color: subtotal >= 250 ? Palette.emerald500 : Palette.blue700 },
+                { color: subtotal >= 250 ? Palette.emerald500 : colors.accent },
               ]}
             >
               {subtotal >= 250
                 ? isTamil
-                  ? '🎉 இலவச டெலிவரி கிடைத்துள்ளது!'
-                  : '🎉 FREE Delivery Unlocked for your zone!'
+                  ? 'இலவச டெலிவரி கிடைத்துள்ளது!'
+                  : 'FREE Delivery Unlocked for your zone!'
                 : isTamil
                 ? `இலவச டெலிவரி பெற மேலும் ₹${(250 - subtotal).toFixed(0)} சேர்க்கவும்`
                 : `Add ₹${(250 - subtotal).toFixed(0)} more for FREE Delivery!`}
@@ -283,6 +312,26 @@ export function CheckoutScreen({
           fullWidth
         />
       </View>
+
+      <AddressManagerModal
+        visible={addressModalVisible}
+        onClose={() => setAddressModalVisible(false)}
+        onSelectAddress={(addrId) => {
+          const addr = useAddressStore.getState().addresses.find((a) => a.id === addrId);
+          if (addr) {
+            setSelectedAddress({
+              id: addr.id,
+              label: addr.label,
+              line1: addr.line1,
+              line2: addr.line2 || undefined,
+              city: addr.city,
+              pincode: addr.pincode,
+              isDefault: addr.isDefault,
+            });
+            setAddressModalVisible(false);
+          }
+        }}
+      />
     </View>
   );
 }

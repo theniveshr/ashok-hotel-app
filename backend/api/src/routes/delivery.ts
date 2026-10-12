@@ -125,7 +125,7 @@ export const deliveryRoutes: FastifyPluginAsync = async (app) => {
       samplePartners.forEach((p) => inMemoryPartners.set(p.id, p));
     }
 
-    if (inMemoryDeliveries.size === 0) {
+    if (false) {
       const sampleDeliveries: DeliveryRecord[] = [
         {
           id: 'del-201',

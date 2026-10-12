@@ -9,7 +9,7 @@ export const delivery = {
   minOrderAmount: 'Minimum order ₹{{amount}} for delivery',
   minOrderNotMet: 'Minimum order for this zone is ₹{{amount}}. Please add ₹{{diff}} more.',
   addMoreForFreeDelivery: 'Add ₹{{amount}} more for FREE Delivery!',
-  freeDeliveryUnlocked: '🎉 You have unlocked FREE Delivery!',
+  freeDeliveryUnlocked: 'You have unlocked FREE Delivery!',
   estimatedTime: 'Estimated {{minutes}} min',
   trackDelivery: 'Track Delivery',
   deliveryTracking: 'Delivery Tracking',

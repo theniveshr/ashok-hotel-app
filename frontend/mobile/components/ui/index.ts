@@ -25,3 +25,7 @@ export * from './PriceSummary';
 export * from './ServiceCard';
 export * from './HallCard';
 export * from './AboutAshokRajModal';
+export * from './AddressManagerModal';
+export * from './LoyaltyRewardsModal';
+export * from './AppInput';
+export * from './ConfirmDialog';

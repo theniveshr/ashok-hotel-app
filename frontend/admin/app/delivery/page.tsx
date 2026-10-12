@@ -376,8 +376,8 @@ export default function DeliveryDispatchConsole() {
           </Link>
           <div className="h-4 w-px bg-[#1A2642]" />
           <div className="flex items-center space-x-3">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#B45309] flex items-center justify-center font-black text-black text-lg shadow-md">
-              
+            <div className="h-9 w-9 rounded-xl bg-[#2563EB] flex items-center justify-center font-black text-white text-lg shadow-sm">
+              🚚
             </div>
             <div>
               <div className="flex items-center space-x-2">

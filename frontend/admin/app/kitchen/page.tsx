@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { KitchenOrder, KitchenOrderStatus } from '@ashok-raj/types';
+import { API_BASE_URL, WS_BASE_URL } from '@/utils/config';
 
 export default function KitchenDisplayPage() {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
@@ -108,7 +109,7 @@ export default function KitchenDisplayPage() {
   // Fetch kitchen orders
   const fetchOrders = useCallback(async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/v1/kitchen/orders', {
+      const res = await fetch(`${API_BASE_URL}/api/v1/kitchen/orders`, {
         headers: { 'x-staff-role': 'KITCHEN_STAFF' },
       });
       if (res.ok) {
@@ -137,7 +138,7 @@ export default function KitchenDisplayPage() {
 
     const connectWS = () => {
       try {
-        ws = new WebSocket('ws://localhost:3001/ws/operations');
+        ws = new WebSocket(`${WS_BASE_URL}/ws/operations`);
         ws.onopen = () => {
           setIsConnected(true);
         };
@@ -173,7 +174,7 @@ export default function KitchenDisplayPage() {
   // Advance Order Status
   const handleUpdateStatus = async (orderId: string, nextStatus: KitchenOrderStatus) => {
     try {
-      const res = await fetch(`http://localhost:3001/api/v1/kitchen/orders/${orderId}/status`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/kitchen/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -197,7 +198,7 @@ export default function KitchenDisplayPage() {
   const handleToggleItem = async (orderId: string, itemId: string, currentStatus: string) => {
     const nextStatus = currentStatus === 'READY' ? 'PREPARING' : 'READY';
     try {
-      await fetch(`http://localhost:3001/api/v1/kitchen/orders/${orderId}/items/${itemId}/status`, {
+      await fetch(`${API_BASE_URL}/api/v1/kitchen/orders/${orderId}/items/${itemId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -223,7 +224,7 @@ export default function KitchenDisplayPage() {
   // 1-Tap Bump Order
   const handleBump = async (orderId: string) => {
     try {
-      await fetch(`http://localhost:3001/api/v1/kitchen/orders/${orderId}/bump`, {
+      await fetch(`${API_BASE_URL}/api/v1/kitchen/orders/${orderId}/bump`, {
         method: 'POST',
         headers: { 'x-staff-role': 'KITCHEN_STAFF' },
       });
@@ -306,7 +307,7 @@ export default function KitchenDisplayPage() {
           {/* Bilingual Toggle */}
           <button
             onClick={() => setLang(lang === 'en' ? 'ta' : 'en')}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#3B82F6] text-[#0A0F1E] hover:bg-[#FBBF24] transition-colors shadow-sm"
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#2563EB] text-white hover:bg-[#1D4ED8] transition-colors shadow-sm"
           >
             🌐 {lang === 'en' ? 'தமிழ்' : 'English'}
           </button>

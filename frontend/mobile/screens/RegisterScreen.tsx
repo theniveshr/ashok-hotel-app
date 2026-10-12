@@ -188,7 +188,7 @@ export function RegisterScreen({
                     setServerError(null);
                   }}
                   onBlur={() => setTouched((prev) => ({ ...prev, name: true }))}
-                  placeholder={isTamil ? 'எ.கா. ரமேஷ் குமார்' : 'e.g. Ramesh Kumar'}
+                  placeholder={isTamil ? 'உங்கள் முழு பெயரை உள்ளிடவும்' : 'Enter full name'}
                   placeholderTextColor={colors.textTertiary}
                   style={[styles.input, { color: colors.textPrimary }]}
                   autoCapitalize="words"
@@ -224,11 +224,16 @@ export function RegisterScreen({
                 <TextInput
                   value={phone}
                   onChangeText={(text) => {
-                    setPhone(text.replace(/[^0-9]/g, ''));
+                    let cleaned = (text || '').replace(/[^0-9+]/g, '');
+                    if (cleaned.startsWith('+91')) cleaned = cleaned.slice(3);
+                    else if (cleaned.startsWith('91') && cleaned.length > 10) cleaned = cleaned.slice(2);
+                    else if (cleaned.startsWith('0') && cleaned.length > 10) cleaned = cleaned.slice(1);
+                    cleaned = cleaned.replace(/[^0-9]/g, '').slice(0, 10);
+                    setPhone(cleaned);
                     setServerError(null);
                   }}
                   onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
-                  placeholder="98765 43210"
+                  placeholder={isTamil ? '10 இலக்க மொபைல் எண்ணை உள்ளிடவும்' : 'Enter mobile number'}
                   placeholderTextColor={colors.textTertiary}
                   keyboardType="phone-pad"
                   maxLength={10}
@@ -265,7 +270,7 @@ export function RegisterScreen({
                     setServerError(null);
                   }}
                   onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
-                  placeholder="name@example.com"
+                  placeholder={isTamil ? 'மின்னஞ்சல் முகவரியை உள்ளிடவும்' : 'Enter email address'}
                   placeholderTextColor={colors.textTertiary}
                   keyboardType="email-address"
                   autoCapitalize="none"
@@ -302,7 +307,7 @@ export function RegisterScreen({
                     setServerError(null);
                   }}
                   onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
-                  placeholder="••••••••"
+                  placeholder={isTamil ? '6 எழுத்துக்கள் கடவுச்சொல்லை உள்ளிடவும்' : 'Enter 6 character password'}
                   placeholderTextColor={colors.textTertiary}
                   secureTextEntry={!showPassword}
                   style={[styles.input, { color: colors.textPrimary }]}

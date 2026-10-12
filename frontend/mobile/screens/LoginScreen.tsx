@@ -62,51 +62,99 @@ export function LoginScreen({
   const [localError, setLocalError] = useState<string | null>(null);
   const [bannerSuccess, setBannerSuccess] = useState<string | null>(successMessage || null);
 
+  const cleanPhone = (val: string) => {
+    let cleaned = (val || '').replace(/[^0-9+]/g, '');
+    if (cleaned.startsWith('+91')) cleaned = cleaned.slice(3);
+    else if (cleaned.startsWith('91') && cleaned.length > 10) cleaned = cleaned.slice(2);
+    else if (cleaned.startsWith('0') && cleaned.length > 10) cleaned = cleaned.slice(1);
+    return cleaned.replace(/[^0-9]/g, '').slice(0, 10);
+  };
+
   const handleSendOtp = async () => {
-    if (phone.length === 10) {
-      setLoading(true);
-      setLocalError(null);
-      setBannerSuccess(null);
-      const res = await sendOtp(phone);
-      setLoading(false);
-      if (res.success) {
-        if (res.debugOtp) {
-          setOtp(res.debugOtp);
-        }
-        setStep('OTP');
-      } else {
-        setLocalError(res.error || 'Failed to send OTP.');
+    if (loading) return;
+    const clean = cleanPhone(phone);
+    if (clean.length !== 10 || !/^[6-9]\d{9}$/.test(clean)) {
+      setLocalError(
+        isTamil
+          ? 'சரியான 10 இலக்க இந்திய மொபைல் எண்ணை உள்ளிடவும் (6-9 இல் தொடங்க வேண்டும்).'
+          : 'Please enter a valid 10-digit Indian mobile number starting with 6-9.'
+      );
+      return;
+    }
+
+    setLoading(true);
+    setLocalError(null);
+    setBannerSuccess(null);
+    const res = await sendOtp(clean);
+    setLoading(false);
+    if (res.success) {
+      if (res.debugOtp) {
+        setOtp(res.debugOtp);
       }
+      setStep('OTP');
+    } else {
+      setLocalError(res.error || (isTamil ? 'OTP அனுப்புவதில் தோல்வி.' : 'Failed to send OTP.'));
     }
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.length === 6) {
-      setLoading(true);
-      setLocalError(null);
-      setBannerSuccess(null);
-      const res = await verifyOtp(phone, otp);
-      setLoading(false);
-      if (res.success) {
-        onLoginSuccess();
-      } else {
-        setLocalError(res.error || 'Invalid verification code.');
-      }
+    if (loading) return;
+    const clean = cleanPhone(phone);
+    const cleanOtp = otp.trim();
+    if (cleanOtp.length !== 6 || !/^\d{6}$/.test(cleanOtp)) {
+      setLocalError(
+        isTamil
+          ? 'சரியான 6 இலக்க சரிபார்ப்புக் குறியீட்டை உள்ளிடவும்.'
+          : 'Please enter a valid 6-digit verification code.'
+      );
+      return;
+    }
+
+    setLoading(true);
+    setLocalError(null);
+    setBannerSuccess(null);
+    const res = await verifyOtp(clean, cleanOtp);
+    setLoading(false);
+    if (res.success) {
+      onLoginSuccess();
+    } else {
+      setLocalError(
+        res.error || (isTamil ? 'தவறான சரிபார்ப்புக் குறியீடு.' : 'Invalid verification code.')
+      );
     }
   };
 
   const handlePasswordLogin = async () => {
-    if (phone.length === 10 && password.length >= 6) {
-      setLoading(true);
-      setLocalError(null);
-      setBannerSuccess(null);
-      const res = await loginWithPassword(phone, password);
-      setLoading(false);
-      if (res.success) {
-        onLoginSuccess();
-      } else {
-        setLocalError(res.error || (isTamil ? 'தவறான தொலைபேசி அல்லது கடவுச்சொல்.' : 'Invalid phone number or password.'));
-      }
+    if (loading) return;
+    const clean = cleanPhone(phone);
+    if (clean.length !== 10 || !/^[6-9]\d{9}$/.test(clean)) {
+      setLocalError(
+        isTamil
+          ? 'சரியான 10 இலக்க இந்திய மொபைல் எண்ணை உள்ளிடவும்.'
+          : 'Please enter a valid 10-digit Indian mobile number.'
+      );
+      return;
+    }
+    if (password.length < 6) {
+      setLocalError(
+        isTamil
+          ? 'கடவுச்சொல் குறைந்தது 6 எழுத்துக்கள் இருக்க வேண்டும்.'
+          : 'Password must be at least 6 characters.'
+      );
+      return;
+    }
+
+    setLoading(true);
+    setLocalError(null);
+    setBannerSuccess(null);
+    const res = await loginWithPassword(clean, password);
+    setLoading(false);
+    if (res.success) {
+      onLoginSuccess();
+    } else {
+      setLocalError(
+        res.error || (isTamil ? 'தவறான தொலைபேசி அல்லது கடவுச்சொல்.' : 'Invalid phone number or password.')
+      );
     }
   };
 
@@ -216,9 +264,9 @@ export function LoginScreen({
                     onChangeText={(text) => {
                       setLocalError(null);
                       setBannerSuccess(null);
-                      setPhone(text.replace(/[^0-9]/g, ''));
+                      setPhone(cleanPhone(text));
                     }}
-                    placeholder={t('auth.phonePlaceholder')}
+                    placeholder={isTamil ? 'மொபைல் எண்ணை உள்ளிடவும்' : 'Enter mobile number'}
                     placeholderTextColor={colors.textTertiary}
                     keyboardType="phone-pad"
                     maxLength={10}
@@ -272,7 +320,7 @@ export function LoginScreen({
                       setBannerSuccess(null);
                       setOtp(text.replace(/[^0-9]/g, ''));
                     }}
-                    placeholder="• • • • • •"
+                    placeholder={isTamil ? '6 இலக்க OTP குறியீட்டை உள்ளிடவும்' : 'Enter 6-digit OTP'}
                     placeholderTextColor={colors.textTertiary}
                     keyboardType="number-pad"
                     maxLength={6}
@@ -331,9 +379,9 @@ export function LoginScreen({
                     onChangeText={(text) => {
                       setLocalError(null);
                       setBannerSuccess(null);
-                      setPhone(text.replace(/[^0-9]/g, ''));
+                      setPhone(cleanPhone(text));
                     }}
-                    placeholder={t('auth.phonePlaceholder')}
+                    placeholder={isTamil ? 'மொபைல் எண்ணை உள்ளிடவும்' : 'Enter mobile number'}
                     placeholderTextColor={colors.textTertiary}
                     keyboardType="phone-pad"
                     maxLength={10}
@@ -361,7 +409,7 @@ export function LoginScreen({
                       setBannerSuccess(null);
                       setPassword(text);
                     }}
-                    placeholder="••••••••"
+                    placeholder={isTamil ? '6 எழுத்துக்கள் கடவுச்சொல்லை உள்ளிடவும்' : 'Enter 6 character password'}
                     placeholderTextColor={colors.textTertiary}
                     secureTextEntry={!showPassword}
                     style={[styles.input, { color: colors.textPrimary, marginLeft: Spacing.sm }]}

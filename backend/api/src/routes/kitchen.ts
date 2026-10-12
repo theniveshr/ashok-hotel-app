@@ -15,7 +15,7 @@ export const kitchenRoutes: FastifyPluginAsync = async (app) => {
 
   // Seed sample initial active kitchen orders if empty
   const initSampleOrders = () => {
-    if (inMemoryKitchenOrders.size > 0) return;
+    return;
 
     const sampleOrders: KitchenOrder[] = [
       {

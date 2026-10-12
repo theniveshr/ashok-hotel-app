@@ -22,7 +22,20 @@ export const IdParamSchema = z.object({
 export const PhoneSchema = z
   .string()
   .trim()
-  .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number');
+  .transform((val) => {
+    let clean = val.replace(/[\s\-\(\)]/g, '');
+    if (clean.startsWith('+91')) {
+      clean = clean.slice(3);
+    } else if (clean.startsWith('91') && clean.length === 12) {
+      clean = clean.slice(2);
+    } else if (clean.startsWith('0') && clean.length === 11) {
+      clean = clean.slice(1);
+    }
+    return clean;
+  })
+  .refine((val) => /^[6-9]\d{9}$/.test(val), {
+    message: 'Enter a valid 10-digit Indian mobile number',
+  });
 
 export const OtpSchema = z
   .string()
@@ -90,6 +103,11 @@ export const AddressSchema = z.object({
   lng: z.number().optional(),
   isDefault: z.boolean().default(false),
 });
+
+export const CreateAddressSchema = AddressSchema;
+export const UpdateAddressSchema = AddressSchema.partial();
+export type CreateAddressInput = z.infer<typeof CreateAddressSchema>;
+export type UpdateAddressInput = z.infer<typeof UpdateAddressSchema>;
 
 // ─── Restaurant Menu (Category & Items) ───────────────────────────────────────
 
@@ -190,6 +208,16 @@ export const PlaceOrderSchema = z.object({
 export const ScanTableQrSchema = z.object({
   qrToken: z.string().min(1, 'QR token is required'),
   guestCount: z.number().int().min(1).max(20).default(2),
+});
+
+export const CreateTableReservationSchema = z.object({
+  guestCount: z.coerce.number().int().min(1, 'At least 1 guest required').max(20, 'Maximum 20 guests per reservation').default(2),
+  reservationDate: z.string().min(1, 'Date is required'),
+  timeSlot: z.string().min(1, 'Time slot is required'),
+  seatingArea: z.enum(['AC_HALL', 'MAIN_HALL', 'FAMILY_SECTION', 'ROOFTOP']).default('AC_HALL'),
+  guestName: z.string().trim().min(2, 'Guest name must be at least 2 characters'),
+  guestPhone: z.string().regex(/^[6-9]\d{9}$/, 'Must be a valid 10-digit Indian mobile number'),
+  specialRequests: z.string().trim().max(300).optional(),
 });
 
 export const TableServiceRequestSchema = z.object({
@@ -458,7 +486,7 @@ const BookingGuestInputSchema = z.object({
     .trim()
     .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number')
     .optional(),
-  idType: z.enum(['Aadhaar', 'Passport', 'PAN']).optional(),
+  idType: z.enum(['Aadhaar', 'Passport', 'PAN', 'Driving Licence']).optional(),
   idNumber: z.string().trim().min(4).max(50).optional(),
   isPrimary: z.boolean().default(false),
 });
@@ -568,6 +596,7 @@ export type CartItemInput = z.infer<typeof CartItemSchema>;
 export type PlaceOrderInput = z.infer<typeof PlaceOrderSchema>;
 
 export type ScanTableQrInput = z.infer<typeof ScanTableQrSchema>;
+export type CreateTableReservationInput = z.infer<typeof CreateTableReservationSchema>;
 export type TableServiceRequestInput = z.infer<typeof TableServiceRequestSchema>;
 
 export type InitiatePaymentInput = z.infer<typeof InitiatePaymentSchema>;

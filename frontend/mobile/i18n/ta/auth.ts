@@ -14,7 +14,7 @@ export const auth = {
 
   // Phone
   enterPhone: 'மொபைல் எண்ணை உள்ளிடுக',
-  phonePlaceholder: '10 இலக்க மொபைல் எண்',
+  phonePlaceholder: 'மொபைல் எண்ணை உள்ளிடவும்',
   phoneHint: 'இந்த எண்ணுக்கு ஒரு சரிபார்ப்பு குறியீடு அனுப்பப்படும்',
   sendOtp: 'OTP அனுப்பு',
   resendOtp: 'OTP மீண்டும் அனுப்பு',
@@ -24,16 +24,16 @@ export const auth = {
   verifyPhone: 'மொபைல் எண்ணை சரிபார்',
   enterOtp: 'OTP உள்ளிடுக',
   otpSentTo: '{{phone}} க்கு OTP அனுப்பப்பட்டது',
-  otpPlaceholder: '6 இலக்க குறியீடு',
+  otpPlaceholder: '6 இலக்க OTP குறியீட்டை உள்ளிடவும்',
   verifyOtp: 'சரிபார்',
   otpExpired: 'OTP காலாவதியாகிவிட்டது. புதியதை கோரவும்.',
   otpInvalid: 'தவறான OTP. சரிபார்த்து மீண்டும் முயற்சிக்கவும்.',
 
   // Registration
   yourName: 'உங்கள் பெயர்',
-  namePlaceholder: 'முழு பெயரை உள்ளிடுக',
+  namePlaceholder: 'முழு பெயரை உள்ளிடவும்',
   emailOptional: 'மின்னஞ்சல் முகவரி (விருப்பத்தேர்வு)',
-  emailPlaceholder: 'உங்கள்@மின்னஞ்சல்.com',
+  emailPlaceholder: 'மின்னஞ்சல் முகவரியை உள்ளிடவும்',
   completeProfile: 'சுயவிவரம் முடிக்க',
 
   // Errors

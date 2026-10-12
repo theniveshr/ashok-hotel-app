@@ -204,6 +204,7 @@ export interface HomeScreenProps {
   onNavigateToRestaurant: (initialSegment?: 'restaurant' | 'bakery' | 'veg') => void;
   onNavigateToLodge: () => void;
   onNavigateToMiniHall: () => void;
+  onNavigateToTableReservation?: () => void;
   onNavigateToOffers: () => void;
   onNavigateToOrders: () => void;
   onNavigateToBookings?: () => void;
@@ -219,6 +220,7 @@ export function HomeScreen({
   onNavigateToRestaurant,
   onNavigateToLodge,
   onNavigateToMiniHall,
+  onNavigateToTableReservation,
   onNavigateToOffers,
   onNavigateToOrders,
   onNavigateToBookings,
@@ -418,11 +420,11 @@ export function HomeScreen({
 
   const orderItemCount = latestOrder?.items
     ? latestOrder.items.reduce((sum: number, it: any) => sum + (it.quantity || 1), 0)
-    : (latestOrder as any)?.itemsCount || 3;
+    : (latestOrder as any)?.itemsCount || 0;
 
   const orderNumberStr = latestOrder?.orderNumber
     ? `Order #${latestOrder.orderNumber}`
-    : 'Order #AR-2026-8891';
+    : '';
 
   const orderTypeStr = formatOrderType(latestOrder?.type);
   const statusInfo = getStatusInfo(latestOrder?.status);
@@ -437,6 +439,7 @@ export function HomeScreen({
 
   const services = [
     { title: isTamil ? 'உணவகம்' : 'Restaurant', desc: isTamil ? 'Dine-in & Parcel' : 'Dine-in & Parcel', icon: Utensils, tint: '#EFF6FF', iconColor: '#2563EB', onPress: () => onNavigateToRestaurant('restaurant') },
+    { title: isTamil ? 'மேசை முன்பதிவு' : 'Book a Table', desc: isTamil ? 'Instant Reservation' : 'Instant Reservation', icon: Calendar, tint: '#FFFBEB', iconColor: '#D97706', onPress: () => onNavigateToTableReservation?.() },
     { title: isTamil ? 'பேக்கரி' : 'Bakery', desc: isTamil ? 'Fresh Cakes & Snacks' : 'Fresh Cakes & Snacks', icon: CakeSlice, tint: '#FFF1F6', iconColor: '#DB2777', onPress: () => onNavigateToRestaurant('bakery') },
     { title: isTamil ? 'தூய சைவம்' : 'Pure Veg', desc: isTamil ? 'Vegetarian Meals' : 'Vegetarian Meals', icon: Leaf, tint: '#ECFDF3', iconColor: '#16A34A', onPress: () => onNavigateToRestaurant('veg') },
     { title: isTamil ? 'லாட்ஜ்' : 'Lodge', desc: isTamil ? 'Comfortable AC Rooms' : 'Comfortable AC Rooms', icon: BedDouble, tint: '#F4F0FF', iconColor: '#7C3AED', onPress: onNavigateToLodge },
@@ -691,7 +694,7 @@ export function HomeScreen({
             contentContainerStyle={styles.activityFilterScroll}
           >
             {[
-              { key: 'ALL', label: isTamil ? 'அனைத்தும் (3)' : 'All Activities (3)' },
+              { key: 'ALL', label: isTamil ? 'அனைத்தும்' : 'All Activities' },
               { key: 'ORDERS', label: isTamil ? 'உணவு ஆர்டர்' : 'Food Orders' },
               { key: 'LODGE', label: isTamil ? 'லாட்ஜ் தங்குமிடம்' : 'Lodge Stay' },
               { key: 'MINI_HALL', label: isTamil ? 'மினி ஹால்' : 'Mini Hall' },
@@ -723,7 +726,7 @@ export function HomeScreen({
           {/* Activities List */}
           <View style={styles.activityList}>
             {/* 1. Real Food Order Activity */}
-            {(activityFilter === 'ALL' || activityFilter === 'ORDERS') && (
+            {latestOrder && (activityFilter === 'ALL' || activityFilter === 'ORDERS') && (
               <TouchableOpacity
                 onPress={onNavigateToOrders}
                 activeOpacity={0.85}
@@ -751,7 +754,7 @@ export function HomeScreen({
             )}
 
             {/* 2. Real Lodge Stay Activity */}
-            {(activityFilter === 'ALL' || activityFilter === 'LODGE') && (
+            {data?.activeBooking && (activityFilter === 'ALL' || activityFilter === 'LODGE') && (
               <TouchableOpacity
                 onPress={() => (onNavigateToBookings ? onNavigateToBookings() : onNavigateToLodge())}
                 activeOpacity={0.85}
@@ -762,21 +765,25 @@ export function HomeScreen({
                 </View>
                 <View style={styles.activityBody}>
                   <Text style={styles.activityTitle}>
-                    {isTamil ? 'லாட்ஜ் தங்குமிடம் #AR-STAY-4029' : 'Lodge Stay #AR-STAY-4029'}
+                    {isTamil
+                      ? `லாட்ஜ் தங்குமிடம் #${data.activeBooking.bookingNumber}`
+                      : `Lodge Stay #${data.activeBooking.bookingNumber}`}
                   </Text>
                   <Text style={styles.activityDescription} numberOfLines={1}>
                     {isTamil
-                      ? 'அறை 104 • டீலக்ஸ் மாஸ்டர் AC (2 விருந்தினர்கள்)'
-                      : 'Room 104 • Deluxe AC Master Suite (2 Guests)'}
+                      ? `அறை ${data.activeBooking.roomNumber} • ${data.activeBooking.roomTypeTitleTa || data.activeBooking.roomTypeTitle}`
+                      : `Room ${data.activeBooking.roomNumber} • ${data.activeBooking.roomTypeTitle}`}
                   </Text>
                   <Text style={styles.activityDate}>
-                    {isTamil ? 'செக்-இன்: இன்று, 02:00 PM • 2 இரவுகள்' : 'Check-In: Today, 02:00 PM • 2 Nights'}
+                    {data.activeBooking.checkInDate
+                      ? new Date(data.activeBooking.checkInDate).toLocaleDateString()
+                      : ''}
                   </Text>
                 </View>
                 <View style={styles.activityRight}>
                   <View style={[styles.statusPill, { backgroundColor: '#DCFCE7' }]}>
                     <Text style={[styles.statusText, { color: '#15803D' }]}>
-                      {isTamil ? 'செக்-இன் ஆனது' : 'Checked In'}
+                      {data.activeBooking.status}
                     </Text>
                   </View>
                   <ChevronRight size={16} color="#475569" />
@@ -784,38 +791,33 @@ export function HomeScreen({
               </TouchableOpacity>
             )}
 
-            {/* 3. Real Mini Hall Event Booking Activity */}
-            {(activityFilter === 'ALL' || activityFilter === 'MINI_HALL') && (
-              <TouchableOpacity
-                onPress={onNavigateToMiniHall}
-                activeOpacity={0.85}
-                style={styles.activityCard}
+            {/* Empty activities state */}
+            {!((latestOrder && (activityFilter === 'ALL' || activityFilter === 'ORDERS')) ||
+              (data?.activeBooking && (activityFilter === 'ALL' || activityFilter === 'LODGE'))) && (
+              <View
+                style={[
+                  styles.activityCard,
+                  {
+                    justifyContent: 'center',
+                    paddingVertical: 18,
+                    backgroundColor: '#F8FAFC',
+                    borderStyle: 'dashed',
+                  },
+                ]}
               >
-                <View style={[styles.activityIcon, { backgroundColor: '#FDF2F8' }]}>
-                  <PartyPopper size={21} color="#DB2777" />
-                </View>
-                <View style={styles.activityBody}>
-                  <Text style={styles.activityTitle}>
-                    {isTamil ? 'மினி ஹால் #AR-HALL-204' : 'Mini Hall #AR-HALL-204'}
-                  </Text>
-                  <Text style={styles.activityDescription} numberOfLines={1}>
-                    {isTamil
-                      ? '100+ இருக்கை AC அரங்கு • குடும்ப விழா & கேட்டரிங்'
-                      : '100+ Seater AC Hall • Family Function & Catering'}
-                  </Text>
-                  <Text style={styles.activityDate}>
-                    {isTamil ? 'நிகழ்வு: 15 செப் 2026 • 10:00 AM' : 'Event Date: 15 Sep 2026 • 10:00 AM'}
-                  </Text>
-                </View>
-                <View style={styles.activityRight}>
-                  <View style={[styles.statusPill, { backgroundColor: '#DBEAFE' }]}>
-                    <Text style={[styles.statusText, { color: '#1E40AF' }]}>
-                      {isTamil ? 'உறுதியானது' : 'Confirmed'}
-                    </Text>
-                  </View>
-                  <ChevronRight size={16} color="#475569" />
-                </View>
-              </TouchableOpacity>
+                <Text
+                  style={{
+                    color: '#64748B',
+                    fontSize: 12,
+                    fontWeight: '600',
+                    textAlign: 'center',
+                  }}
+                >
+                  {isTamil
+                    ? 'செயலில் உள்ள நடவடிக்கைகள் எதுவும் இல்லை'
+                    : 'No active orders or reservations yet'}
+                </Text>
+              </View>
             )}
           </View>
         </View>

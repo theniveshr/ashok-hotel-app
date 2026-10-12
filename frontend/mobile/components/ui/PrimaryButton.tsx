@@ -7,10 +7,11 @@ import {
   type StyleProp,
   type ViewStyle,
   type TextStyle,
-  View
+  View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Radius, Spacing, FontSize, Elevation, Palette } from '@ashok-raj/ui';
+import { useTheme } from '../../theme/ThemeContext';
+import { Radius, FontSize, Elevation, TouchTarget, Spacing } from '@ashok-raj/ui';
 
 export interface PrimaryButtonProps {
   title: string;
@@ -23,13 +24,9 @@ export interface PrimaryButtonProps {
   fullWidth?: boolean;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
-  variant?: 'filled' | 'outline';
+  variant?: 'filled' | 'outline' | 'gold' | 'navy';
 }
 
-/**
- * PrimaryButton — Cobalt blue filled CTA.
- * Background: #2563EB, Text: white. No gold/navy gradient.
- */
 export function PrimaryButton({
   title,
   onPress,
@@ -43,6 +40,8 @@ export function PrimaryButton({
   textStyle,
   variant = 'filled',
 }: PrimaryButtonProps) {
+  const { colors, isDark } = useTheme();
+
   const handlePress = () => {
     if (!disabled && !loading) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -51,37 +50,67 @@ export function PrimaryButton({
   };
 
   const sizeStyles = {
-    sm: { paddingVertical: 8,  paddingHorizontal: 16, fontSize: FontSize.xs + 2 },
-    md: { paddingVertical: 14, paddingHorizontal: 24, fontSize: FontSize.sm + 1 },
-    lg: { paddingVertical: 18, paddingHorizontal: 32, fontSize: FontSize.md },
+    sm: { paddingVertical: 8,  paddingHorizontal: 16, fontSize: FontSize.xs + 2, minHeight: TouchTarget.minHeight },
+    md: { paddingVertical: 13, paddingHorizontal: 24, fontSize: FontSize.sm + 1, minHeight: 48 },
+    lg: { paddingVertical: 16, paddingHorizontal: 32, fontSize: FontSize.md, minHeight: 54 },
   }[size];
 
-  const isFilled = variant === 'filled';
+  // Resolve background and text colors per variant and theme
+  let bgColor = colors.primary;
+  let textColor = isDark ? colors.primaryDark : '#FFFFFF';
+  let borderColor = 'transparent';
+
+  if (variant === 'gold') {
+    bgColor = colors.accent;
+    textColor = isDark ? colors.primaryDark : '#070C1E';
+  } else if (variant === 'navy') {
+    bgColor = colors.royalNavy;
+    textColor = '#FFFFFF';
+  } else if (variant === 'outline') {
+    bgColor = 'transparent';
+    borderColor = colors.borderFocus;
+    textColor = colors.textPrimary;
+  } else if (variant === 'filled') {
+    if (isDark) {
+      bgColor = colors.accent; // Champagne Gold CTA in Dark Mode
+      textColor = colors.primaryDark; // Royal Navy text
+    } else {
+      bgColor = colors.primary; // Royal Navy in Light Mode
+      textColor = '#FFFFFF';
+    }
+  }
+
+  if (disabled) {
+    bgColor = colors.borderStrong;
+    textColor = colors.textDisabled;
+    borderColor = 'transparent';
+  }
 
   return (
     <TouchableOpacity
       onPress={handlePress}
       disabled={disabled || loading}
       activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled, busy: !!loading }}
       style={[
         styles.container,
         fullWidth && styles.fullWidth,
         disabled && styles.disabled,
         {
-          backgroundColor: disabled
-            ? Palette.slate300
-            : isFilled ? Palette.blue700 : 'transparent',
-          borderColor: disabled ? Palette.slate300 : Palette.blue700,
-          borderWidth: isFilled ? 0 : 1.5,
+          backgroundColor: bgColor,
+          borderColor,
+          borderWidth: variant === 'outline' ? 1.5 : 0,
           paddingVertical: sizeStyles.paddingVertical,
           paddingHorizontal: sizeStyles.paddingHorizontal,
+          minHeight: sizeStyles.minHeight,
         },
-        Elevation.sm,
+        !disabled && variant !== 'outline' && Elevation.sm,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isFilled ? '#FFFFFF' : Palette.blue700} size="small" />
+        <ActivityIndicator color={textColor} size="small" />
       ) : (
         <View style={styles.row}>
           {icon && iconPosition === 'left' && icon}
@@ -90,9 +119,7 @@ export function PrimaryButton({
               styles.text,
               {
                 fontSize: sizeStyles.fontSize,
-                color: disabled
-                  ? Palette.slate500
-                  : isFilled ? '#FFFFFF' : Palette.blue700,
+                color: textColor,
               },
               textStyle,
             ]}
@@ -108,7 +135,7 @@ export function PrimaryButton({
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -123,10 +150,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: Spacing.sm,
   },
   text: {
-    fontWeight: '700',
+    fontWeight: '800',
     letterSpacing: 0.3,
   },
 });

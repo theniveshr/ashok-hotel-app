@@ -11,6 +11,7 @@
     "baseUrl": ".",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "customConditions": ["react-native"],
     "jsx": "react-jsx",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
@@ -35,6 +36,8 @@
   },
   "include": [
     "App.tsx",
+    "index.ts",
+    "config/**/*.ts",
     "components/**/*.ts",
     "components/**/*.tsx",
     "screens/**/*.ts",
@@ -42,10 +45,16 @@
     "store/**/*.ts",
     "theme/**/*.ts",
     "theme/**/*.tsx",
-    "i18n/**/*.ts"
+    "i18n/**/*.ts",
+    "utils/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "../../node_modules"
+    "**/node_modules/**",
+    "../../node_modules/**",
+    ".expo",
+    ".turbo",
+    "android",
+    "ios"
   ]
 }

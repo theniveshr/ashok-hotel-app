@@ -77,13 +77,15 @@ export function BottomSheet({
               </Text>
               <TouchableOpacity
                 onPress={onClose}
+                accessibilityRole="button"
+                accessibilityLabel="Close bottom sheet"
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={[
                   styles.closeBtn,
                   { backgroundColor: colors.surfaceElevated },
                 ]}
               >
-                <X size={16} color={colors.textSecondary} />
+                <X size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           )}
@@ -133,8 +135,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   closeBtn: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     borderRadius: Radius.full,
     justifyContent: 'center',
     alignItems: 'center',

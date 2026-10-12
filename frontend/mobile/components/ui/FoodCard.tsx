@@ -13,6 +13,7 @@ import {
 import { Heart, Plus, Utensils, Leaf } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from '../../i18n';
+import { useTheme } from '../../theme/ThemeContext';
 import { Radius, Spacing, FontSize, Palette } from '@ashok-raj/ui';
 
 export interface FoodCardProps {
@@ -51,6 +52,7 @@ export function FoodCard({
   style,
 }: FoodCardProps) {
   const { isTamil } = useTranslation();
+  const { colors, isDark } = useTheme();
   const [isFavorite, setIsFavorite] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [fallbackFailed, setFallbackFailed] = useState(false);
@@ -100,7 +102,14 @@ export function FoodCard({
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.88}
-      style={[styles.card, style]}
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+        },
+        style,
+      ]}
     >
       {/* Food Image Container */}
       <View style={styles.imageWrap}>
@@ -143,6 +152,7 @@ export function FoodCard({
           onPress={toggleFavorite}
           style={styles.favoriteButton}
           activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Heart
             size={15}
@@ -155,15 +165,15 @@ export function FoodCard({
 
       {/* Food Info Body */}
       <View style={styles.body}>
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
           {displayName}
         </Text>
-        <Text style={styles.subtitle} numberOfLines={1}>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>
           {subText}
         </Text>
 
         <View style={styles.bottomRow}>
-          <Text style={styles.price}>
+          <Text style={[styles.price, { color: colors.textAccent }]}>
             ₹{Number(price ?? 0).toFixed(0)}
           </Text>
 
@@ -171,14 +181,19 @@ export function FoodCard({
             onPress={handleAdd}
             style={[
               styles.addButton,
+              {
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                borderColor: colors.accent,
+              },
               effectiveCartQty > 0 && styles.addButtonActive,
             ]}
             activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             {effectiveCartQty > 0 ? (
               <Text style={styles.addQuantityText}>{effectiveCartQty}</Text>
             ) : (
-              <Plus size={16} color={Palette.blue700} strokeWidth={2.5} />
+              <Plus size={16} color={colors.accent} strokeWidth={2.5} />
             )}
           </TouchableOpacity>
         </View>

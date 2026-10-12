@@ -72,27 +72,15 @@ interface CartState {
   getTotalCount: () => number;
 }
 
-const defaultAddress: DeliveryAddress = {
-  id: 'addr-1',
-  label: 'Home',
-  line1: '14, South Car Street, Near Swarnakaleeswarar Temple',
-  line2: 'Opposite Ashok Raj Bhavan',
-  city: 'Kalaiyarkoil',
-  pincode: '630551',
-  isDefault: true,
-};
-
-
-
 export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
       deliveryType: 'HOME_DELIVERY',
-      selectedAddress: defaultAddress,
+      selectedAddress: null,
       specialInstructions: '',
-      couponCode: 'ASHOKRAJ20',
-      discountAmount: 40,
+      couponCode: null,
+      discountAmount: 0,
       taxRate: 0.05, // 5% GST
 
       addItem: (itemInput: AddCartItemInput) => {

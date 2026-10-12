@@ -41,28 +41,11 @@ export const waiterRoutes: FastifyPluginAsync = async (app) => {
       tableNumber: '03',
       floor: 1,
       capacity: 4,
-      status: 'OCCUPIED',
+      status: 'AVAILABLE',
       isAc: true,
       qrToken: 'qr_kal_tbl_03',
-      activeSessionId: 'sess-tbl-3',
-      guestCount: 3,
-      openedAt: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
-      sessionDurationMinutes: 35,
-      activeOrdersCount: 1,
-      totalAmount: 480,
-      pendingRequests: [
-        {
-          id: 'req-w-1',
-          tableSessionId: 'sess-tbl-3',
-          tableId: 'tbl-3',
-          tableNumber: '03',
-          type: 'WATER',
-          note: '2 glasses of warm water',
-          status: 'PENDING',
-          createdAt: new Date(Date.now() - 1000 * 60 * 3).toISOString(),
-        },
-      ],
-      hasPendingCall: true,
+      pendingRequests: [],
+      hasPendingCall: false,
       hasBillRequest: false,
       assignedWaiterName: 'Murugan (Self)',
     },
@@ -209,35 +192,7 @@ export const waiterRoutes: FastifyPluginAsync = async (app) => {
   ];
 
   // In-memory queue of ready-to-serve orders from kitchen
-  const readyOrders: WaiterOrderSummary[] = [
-    {
-      id: 'ord-w-103',
-      orderNumber: 'AR-TBL-0802',
-      type: 'DINE_IN',
-      status: 'READY',
-      tableNumber: '08',
-      readyAt: new Date(Date.now() - 1000 * 60 * 2).toISOString(),
-      createdAt: new Date(Date.now() - 1000 * 60 * 22).toISOString(),
-      isReadyForPickup: true,
-      items: [
-        {
-          id: 'it-105',
-          name: 'Chettinad Special Chicken Biryani',
-          nameTa: 'செட்டிநாடு சிக்கன் பிரியாணி',
-          quantity: 2,
-          status: 'READY',
-        },
-        {
-          id: 'it-106',
-          name: 'Kalaiyarkoil Special Filter Coffee',
-          nameTa: 'காளையார்கோவில் ஃபில்டர் காபி',
-          quantity: 2,
-          status: 'READY',
-          note: 'Extra strong, hot',
-        },
-      ],
-    },
-  ];
+  const readyOrders: WaiterOrderSummary[] = [];
 
   // Helper to broadcast waiter WebSocket events
   const broadcastWaiterEvent = (event: string, payload: any) => {

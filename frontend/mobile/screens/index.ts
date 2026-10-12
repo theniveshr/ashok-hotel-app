@@ -21,4 +21,5 @@ export * from './WaiterScreen';
 export * from './DeliveryTrackingScreen';
 export * from './MiniHallScreen';
 export * from './OffersScreen';
+export * from './TableReservationScreen';
 

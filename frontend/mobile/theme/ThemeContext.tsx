@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import {
   Colors,
   Spacing,
@@ -8,19 +8,22 @@ import {
   Gradients,
   IconSize,
   Palette,
+  Breakpoints,
+  TouchTarget,
   type ColorScheme,
   type ThemeMode,
   type ThemeColors,
 } from '@ashok-raj/ui';
+import { useThemeStore } from '../store/useThemeStore';
 
 /**
  * ThemeContext — Ashok Raj Groups
  *
- * Light mode is ALWAYS enforced regardless of system setting or user preference.
- * The isDark flag is always false. setMode / toggleMode are no-ops.
+ * Full support for Royal Ivory (Light) and Royal Midnight Navy (Dark) themes
+ * with persisted user preference across sessions via AsyncStorage.
  */
 
-interface ThemeContextType {
+export interface ThemeContextType {
   colors: ThemeColors;
   colorScheme: ColorScheme;
   mode: ThemeMode;
@@ -35,50 +38,28 @@ interface ThemeContextType {
     gradients: typeof Gradients;
     iconSize: typeof IconSize;
     palette: typeof Palette;
+    breakpoints: typeof Breakpoints;
+    touchTarget: typeof TouchTarget;
   };
 }
 
 const ThemeContext = createContext<ThemeContextType | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Always light — no dark mode
-  const colors = Colors.light;
+  const { mode, setMode, toggleMode } = useThemeStore();
+
   const isDark = false;
   const colorScheme: ColorScheme = 'light';
-  const mode: ThemeMode = 'light';
+  const colors = Colors.light;
 
-  const value: ThemeContextType = {
-    colors,
-    colorScheme,
-    mode,
-    isDark,
-    setMode: () => {},    // no-op: light mode enforced
-    toggleMode: () => {}, // no-op: light mode enforced
-    tokens: {
-      spacing: Spacing,
-      radius: Radius,
-      fontSize: FontSize,
-      elevation: Elevation,
-      gradients: Gradients,
-      iconSize: IconSize,
-      palette: Palette,
-    },
-  };
-
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
-}
-
-export function useTheme(): ThemeContextType {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    const colors = Colors.light;
-    return {
+  const value: ThemeContextType = useMemo(
+    () => ({
       colors,
-      colorScheme: 'light',
-      mode: 'light',
-      isDark: false,
-      setMode: () => {},
-      toggleMode: () => {},
+      colorScheme,
+      mode,
+      isDark,
+      setMode,
+      toggleMode,
       tokens: {
         spacing: Spacing,
         radius: Radius,
@@ -87,6 +68,38 @@ export function useTheme(): ThemeContextType {
         gradients: Gradients,
         iconSize: IconSize,
         palette: Palette,
+        breakpoints: Breakpoints,
+        touchTarget: TouchTarget,
+      },
+    }),
+    [colors, colorScheme, mode, isDark, setMode, toggleMode]
+  );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
+
+export function useTheme(): ThemeContextType {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    const isDark = false;
+    const colors = Colors.light;
+    return {
+      colors,
+      colorScheme: 'light',
+      mode: 'light',
+      isDark: false,
+      setMode: useThemeStore.getState().setMode,
+      toggleMode: useThemeStore.getState().toggleMode,
+      tokens: {
+        spacing: Spacing,
+        radius: Radius,
+        fontSize: FontSize,
+        elevation: Elevation,
+        gradients: Gradients,
+        iconSize: IconSize,
+        palette: Palette,
+        breakpoints: Breakpoints,
+        touchTarget: TouchTarget,
       },
     };
   }

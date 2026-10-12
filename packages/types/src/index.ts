@@ -384,6 +384,26 @@ export interface ScanQrPayload {
   guestCount?: number;
 }
 
+export type TableArea = 'AC_HALL' | 'MAIN_HALL' | 'FAMILY_SECTION' | 'ROOFTOP';
+export type TableReservationStatus = 'CONFIRMED' | 'SEATED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+
+export interface TableReservation extends BaseEntity {
+  reservationNumber: string;
+  userId?: string | null;
+  tableId: string;
+  tableNumber: string;
+  branchId: string;
+  guestCount: number;
+  reservationDate: string;
+  timeSlot: string;
+  seatingArea: TableArea;
+  guestName: string;
+  guestPhone: string;
+  specialRequests?: string | null;
+  status: TableReservationStatus;
+  allocatedAt: string;
+}
+
 // ─── Lodge / Rooms ────────────────────────────────────────────────────────────
 
 export interface Amenity extends BaseEntity {
@@ -639,6 +659,39 @@ export interface LoyaltyAccount extends BaseEntity {
   tier: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
   totalEarned: number;
   totalRedeemed: number;
+}
+
+export interface LoyaltyTransaction {
+  id: string;
+  accountId: string;
+  type: 'EARN' | 'REDEEM' | 'EXPIRE' | 'BONUS';
+  points: number;
+  referenceId?: string | null;
+  referenceType?: string | null;
+  description: string;
+  descriptionTa: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface LoyaltyPerk {
+  title: string;
+  titleTa: string;
+  description: string;
+  descriptionTa: string;
+  iconName?: string;
+}
+
+export interface LoyaltyProfileResponse {
+  points: number;
+  tier: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+  totalEarned: number;
+  totalRedeemed: number;
+  rupeeEquivalent: number;
+  nextTier: string | null;
+  pointsToNextTier: number;
+  perks: LoyaltyPerk[];
+  recentTransactions: LoyaltyTransaction[];
 }
 
 // ─── Customer Home Feed ────────────────────────────────────────────────────────

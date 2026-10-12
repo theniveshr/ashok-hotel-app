@@ -35,14 +35,21 @@ In Terminal 1 (from project root):
 In Terminal 2 (from project root):
   npm run mobile
 
-Options inside Expo terminal:
-- Press 'w' -> Open Web browser preview (http://localhost:8081)
-- Press 'a' -> Open Android Emulator
-- Scan QR code with "Expo Go" on physical Android phone (same Wi-Fi)
+✨ AUTOMATIC LAN IP DETECTION:
+- Every time you run `npm run mobile`, the app automatically detects your Windows
+  computer's current Wi-Fi or Mobile Hotspot IPv4 address.
+- It automatically updates `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_WS_URL` in `frontend/mobile/.env`.
+- If your IP changed (e.g. you switched Wi-Fi networks or mobile hotspot), it automatically
+  runs Expo with `--clear` (`-c`) to purge cached Metro bundles.
+- You can also run `npm run mobile:sync` at any time to sync without starting Expo.
 
-* If on different Wi-Fi / Campus Network / Mobile Hotspot:
-  cd frontend/mobile
-  npx expo start --tunnel -c
+Options inside Expo terminal:
+- Press 's' -> Switch between LAN, Localhost, or Tunnel
+- Press 'c' -> Clear Metro cache manually
+- Press 'r' -> Reload the app on your phone
+- Press 'a' -> Open Android Emulator
+- Press 'w' -> Open Web browser preview
+- Scan QR code with "Expo Go" on physical Android phone (ensure phone is on same Wi-Fi/Hotspot)
 
 
 5. ADMIN WEB DASHBOARD (Next.js)

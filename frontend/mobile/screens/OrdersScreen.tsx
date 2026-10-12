@@ -6,7 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Platform
+  Platform,
+  Alert
 } from 'react-native';
 import { ShoppingBag, ChevronRight, Clock, RefreshCw, XCircle, Truck } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
@@ -201,7 +202,7 @@ export function OrdersScreen({ onFoodPress, onViewCart }: OrdersScreenProps = {}
                     </Text>
 
                     <View style={styles.actionRow}>
-                      {order.orderType === 'DELIVERY' && order.status !== 'PLACED' && (
+                      {(order.type === 'HOME_DELIVERY' || (order as any).orderType === 'DELIVERY' || (order.type as string) === 'DELIVERY') && (
                         <TouchableOpacity
                           style={styles.trackBtn}
                           onPress={() => setTrackingOrderId(order.id)}
@@ -216,7 +217,22 @@ export function OrdersScreen({ onFoodPress, onViewCart }: OrdersScreenProps = {}
                       {order.status === 'PLACED' && (
                         <TouchableOpacity
                           style={styles.cancelBtn}
-                          onPress={() => cancelOrder(order.id)}
+                          onPress={() => {
+                            Alert.alert(
+                              isTamil ? 'ஆர்டரை ரத்து செய்' : 'Cancel Order',
+                              isTamil
+                                ? 'இந்த ஆர்டரை நிச்சயமாக ரத்து செய்ய விரும்புகிறீர்களா?'
+                                : 'Are you sure you want to cancel this order?',
+                              [
+                                { text: isTamil ? 'இல்லை' : 'No', style: 'cancel' },
+                                {
+                                  text: isTamil ? 'ஆம், ரத்து செய்' : 'Yes, Cancel',
+                                  style: 'destructive',
+                                  onPress: () => cancelOrder(order.id, 'Cancelled by user'),
+                                },
+                              ]
+                            );
+                          }}
                         >
                           <XCircle size={14} color={Palette.error} />
                           <Text style={styles.cancelBtnText}>

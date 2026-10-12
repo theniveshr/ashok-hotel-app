@@ -33,6 +33,18 @@ interface AuthState {
   clearError: () => void;
 }
 
+function normalizePhoneNumber(raw: string): string {
+  let clean = (raw || '').replace(/[\s\-\(\)]/g, '');
+  if (clean.startsWith('+91')) {
+    clean = clean.slice(3);
+  } else if (clean.startsWith('91') && clean.length === 12) {
+    clean = clean.slice(2);
+  } else if (clean.startsWith('0') && clean.length === 11) {
+    clean = clean.slice(1);
+  }
+  return clean.replace(/[^0-9]/g, '');
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -47,9 +59,10 @@ export const useAuthStore = create<AuthState>()(
       sendOtp: async (phone: string) => {
         set({ isLoading: true, error: null });
         try {
+          const cleanPhone = normalizePhoneNumber(phone);
           const res = await apiFetch('/auth/send-otp', {
             method: 'POST',
-            body: JSON.stringify({ phone }),
+            body: JSON.stringify({ phone: cleanPhone }),
           });
 
           const data = await res.json();
@@ -63,8 +76,8 @@ export const useAuthStore = create<AuthState>()(
 
           return {
             success: true,
-            message: data.data.message,
-            debugOtp: data.data.debugOtp,
+            message: data.data?.message || 'OTP sent successfully',
+            debugOtp: data.data?.debugOtp,
           };
         } catch (err: any) {
           const errorMsg = err?.message || 'Network error while requesting OTP.';
@@ -76,9 +89,11 @@ export const useAuthStore = create<AuthState>()(
       verifyOtp: async (phone: string, otp: string) => {
         set({ isLoading: true, error: null });
         try {
+          const cleanPhone = normalizePhoneNumber(phone);
+          const cleanOtp = (otp || '').trim();
           const res = await apiFetch('/auth/verify-otp', {
             method: 'POST',
-            body: JSON.stringify({ phone, otp }),
+            body: JSON.stringify({ phone: cleanPhone, otp: cleanOtp }),
           });
 
           const data = await res.json();
@@ -111,6 +126,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         try {
           const { autoLogin, ...payload } = input;
+          payload.phone = normalizePhoneNumber(payload.phone);
           const res = await apiFetch('/auth/register', {
             method: 'POST',
             body: JSON.stringify(payload),
@@ -151,9 +167,10 @@ export const useAuthStore = create<AuthState>()(
       loginWithPassword: async (phone: string, password: string) => {
         set({ isLoading: true, error: null });
         try {
+          const cleanPhone = normalizePhoneNumber(phone);
           const res = await apiFetch('/auth/password-login', {
             method: 'POST',
-            body: JSON.stringify({ phone, password }),
+            body: JSON.stringify({ phone: cleanPhone, password }),
             timeoutMs: 20000,
           });
 

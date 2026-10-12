@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { WaiterTableSummary, TableServiceRequest, WaiterOrderSummary } from '@ashok-raj/types';
+import { API_BASE_URL, WS_BASE_URL } from '@/utils/config';
 
 export default function WaiterDashboardPage() {
   const [tables, setTables] = useState<WaiterTableSummary[]>([]);
@@ -133,13 +134,13 @@ export default function WaiterDashboardPage() {
   const fetchData = useCallback(async () => {
     try {
       const [tblRes, reqRes, readyRes] = await Promise.all([
-        fetch('http://localhost:3001/api/v1/waiter/tables', {
+        fetch(`${API_BASE_URL}/api/v1/waiter/tables`, {
           headers: { 'x-staff-role': 'WAITER' },
         }),
-        fetch('http://localhost:3001/api/v1/waiter/requests', {
+        fetch(`${API_BASE_URL}/api/v1/waiter/requests`, {
           headers: { 'x-staff-role': 'WAITER' },
         }),
-        fetch('http://localhost:3001/api/v1/waiter/orders/ready', {
+        fetch(`${API_BASE_URL}/api/v1/waiter/orders/ready`, {
           headers: { 'x-staff-role': 'WAITER' },
         }),
       ]);
@@ -174,7 +175,7 @@ export default function WaiterDashboardPage() {
 
     const connectWS = () => {
       try {
-        ws = new WebSocket('ws://localhost:3001/ws/operations');
+        ws = new WebSocket(`${WS_BASE_URL}/ws/operations`);
         ws.onopen = () => setIsConnected(true);
         ws.onmessage = (evt) => {
           try {
@@ -208,7 +209,7 @@ export default function WaiterDashboardPage() {
   // Resolve Service Request
   const handleResolveRequest = async (requestId: string, status: 'ACKNOWLEDGED' | 'COMPLETED') => {
     try {
-      await fetch(`http://localhost:3001/api/v1/waiter/requests/${requestId}/status`, {
+      await fetch(`${API_BASE_URL}/api/v1/waiter/requests/${requestId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -225,7 +226,7 @@ export default function WaiterDashboardPage() {
   // Mark Food Served to Table
   const handleMarkServed = async (orderId: string) => {
     try {
-      await fetch(`http://localhost:3001/api/v1/waiter/orders/${orderId}/serve`, {
+      await fetch(`${API_BASE_URL}/api/v1/waiter/orders/${orderId}/serve`, {
         method: 'PATCH',
         headers: { 'x-staff-role': 'WAITER' },
       });
@@ -239,7 +240,7 @@ export default function WaiterDashboardPage() {
   const handlePunchOrder = async () => {
     if (!punchingTable) return;
     try {
-      await fetch(`http://localhost:3001/api/v1/waiter/tables/${punchingTable.id}/order`, {
+      await fetch(`${API_BASE_URL}/api/v1/waiter/tables/${punchingTable.id}/order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -270,7 +271,7 @@ export default function WaiterDashboardPage() {
   const handleSettleBill = async () => {
     if (!billingTable) return;
     try {
-      await fetch(`http://localhost:3001/api/v1/waiter/tables/${billingTable.id}/bill`, {
+      await fetch(`${API_BASE_URL}/api/v1/waiter/tables/${billingTable.id}/bill`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -295,7 +296,7 @@ export default function WaiterDashboardPage() {
   // Reset Table to Available
   const handleResetStatus = async (tableId: string) => {
     try {
-      await fetch(`http://localhost:3001/api/v1/waiter/tables/${tableId}/reset-status`, {
+      await fetch(`${API_BASE_URL}/api/v1/waiter/tables/${tableId}/reset-status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

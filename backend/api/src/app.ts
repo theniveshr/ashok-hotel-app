@@ -19,6 +19,7 @@ import { customerOrderRoutes } from './routes/orders.js';
 import { adminOrderRoutes } from './routes/adminOrders.js';
 import { customerDineInRoutes } from './routes/dineIn.js';
 import { adminDineInRoutes } from './routes/adminDineIn.js';
+import { customerProfileRoutes } from './routes/customerProfile.js';
 import { kitchenRoutes } from './routes/kitchen.js';
 import { waiterRoutes } from './routes/waiter.js';
 import { deliveryRoutes } from './routes/delivery.js';
@@ -161,11 +162,14 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // ── Routes ─────────────────────────────────────────────────────────────────
   await app.register(healthRoutes, { prefix: '/health' });
+  await app.register(healthRoutes, { prefix: '/api/v1/health' });
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(customerHomeRoutes, { prefix: '/api/v1/customer' });
+  await app.register(customerProfileRoutes, { prefix: '/api/v1/customer' });
   await app.register(customerMenuRoutes, { prefix: '/api/v1/customer/menu' });
   await app.register(customerOrderRoutes, { prefix: '/api/v1/customer/orders' });
   await app.register(customerDineInRoutes, { prefix: '/api/v1/customer/dine-in' });
+  await app.register(customerDineInRoutes, { prefix: '/api/v1/customer/tables' });
   await app.register(adminMenuRoutes, { prefix: '/api/v1/admin/menu' });
   await app.register(adminOrderRoutes, { prefix: '/api/v1/admin/orders' });
   await app.register(adminDineInRoutes, { prefix: '/api/v1/admin/dine-in' });

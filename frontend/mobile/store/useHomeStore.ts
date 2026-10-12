@@ -21,30 +21,12 @@ const mockHomeFeed: HomeFeedData = {
     branchNameTa: 'காளையார்கோவில் முதன்மை கிளை',
   },
   loyalty: {
-    points: 450,
-    tier: 'GOLD',
-    rupeeEquivalent: 112.5,
+    points: 0,
+    tier: 'BRONZE',
+    rupeeEquivalent: 0,
   },
-  activeOrder: {
-    id: 'ord_102',
-    orderNumber: 'AR-2026-8891',
-    status: 'PREPARING',
-    type: 'DINE_IN',
-    estimatedMinutes: 12,
-    itemsCount: 3,
-    totalAmount: 480,
-    tableNumber: '04',
-  },
-  activeBooking: {
-    id: 'bk_501',
-    bookingNumber: 'AR-STAY-4029',
-    roomTypeTitle: 'Deluxe AC Family Suite',
-    roomTypeTitleTa: 'டீலக்ஸ் ஏசி குடும்ப சூட்',
-    roomNumber: '108',
-    status: 'CONFIRMED',
-    checkInDate: '2026-08-24T14:00:00Z',
-    checkOutDate: '2026-08-26T11:00:00Z',
-  },
+  activeOrder: undefined,
+  activeBooking: undefined,
   banners: [
     {
       id: 'b1',
@@ -364,9 +346,9 @@ export const useHomeStore = create<HomeState>((set, get) => ({
         }
       }
     } catch {
-      // Retain mock fallback if backend is offline
+      // Retain existing state if backend is offline
     }
-    set({ data: mockHomeFeed, isLoading: false });
+    set({ isLoading: false });
   },
 
   refreshHomeFeed: async () => {

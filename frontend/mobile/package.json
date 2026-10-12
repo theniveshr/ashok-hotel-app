@@ -4,11 +4,13 @@
   "private": true,
   "main": "index.ts",
   "scripts": {
-    "dev": "expo start",
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
+    "sync:ip": "powershell -ExecutionPolicy Bypass -File ../../scripts/sync-mobile-env.ps1",
+    "dev": "powershell -ExecutionPolicy Bypass -File ../../scripts/start-mobile.ps1",
+    "start": "powershell -ExecutionPolicy Bypass -File ../../scripts/start-mobile.ps1",
+    "start:raw": "expo start",
+    "android": "powershell -ExecutionPolicy Bypass -File ../../scripts/start-mobile.ps1 --android",
+    "ios": "powershell -ExecutionPolicy Bypass -File ../../scripts/start-mobile.ps1 --ios",
+    "web": "powershell -ExecutionPolicy Bypass -File ../../scripts/start-mobile.ps1 --web",
     "typecheck": "node --max-old-space-size=4096 ../../node_modules/typescript/bin/tsc --noEmit --skipLibCheck"
   },
   "dependencies": {

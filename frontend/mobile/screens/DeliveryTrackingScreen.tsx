@@ -21,13 +21,17 @@ import {
   Bike,
   RefreshCw,
   XCircle,
+  Star,
+  Lock,
 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useTranslation } from '../i18n';
 import { Header } from '../components/ui/Header';
 import { GlassCard } from '../components/ui/GlassCard';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Radius, Spacing, FontSize, Palette } from '@ashok-raj/ui';
 import type { DeliveryTrackingInfo } from '@ashok-raj/types';
+import { useOrderStore } from '../store/useOrderStore';
 
 export interface DeliveryTrackingScreenProps {
   orderId: string;
@@ -40,104 +44,93 @@ export function DeliveryTrackingScreen({ orderId, onBack }: DeliveryTrackingScre
   const [loading, setLoading] = useState(false);
   const [trackingData, setTrackingData] = useState<DeliveryTrackingInfo | null>(null);
 
-  // Mock tracking data fetch
+  // Live tracking data fetch with real backend order integration
   const fetchTracking = async () => {
     setLoading(true);
     try {
-      // Simulate live tracking fetch
-      setTimeout(() => {
-        const mockInfo: DeliveryTrackingInfo = {
-          orderId: orderId || 'ord-del-101',
-          orderNumber: 'AR-DEL-8801',
-          status: 'OUT_FOR_DELIVERY',
-          deliveryStatus: 'EN_ROUTE',
-          estimatedDeliveryAt: new Date(Date.now() + 1000 * 60 * 18).toISOString(),
-          estimatedDeliveryMinutes: 18,
-          elapsedMinutes: 14,
-          deliveryFee: 0,
-          otp: '482915',
-          partner: {
-            id: 'driver-101',
-            name: 'Murugan Selvam',
-            phoneMasked: '98******81',
-            phone: '9842199881',
-            vehicleType: 'BIKE',
-            vehicleNumber: 'TN 63 AB 4589',
-            rating: 4.9,
-            currentLat: 9.8452,
-            currentLng: 78.6541,
+      const realOrder = await useOrderStore.getState().fetchOrderById(orderId);
+      if (realOrder) {
+        const isCancelled = realOrder.status === 'CANCELLED';
+        const isDelivered = realOrder.status === 'DELIVERED';
+        const cancellationAllowed = realOrder.status === 'PLACED';
+
+        const statusOrder = ['PLACED', 'ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+        const currentIdx = isCancelled ? -1 : statusOrder.indexOf(realOrder.status);
+
+        const mappedTimeline = [
+          {
+            step: 'PLACED',
+            title: isTamil ? 'ஆர்டர் பெறப்பட்டது' : 'Order Placed',
+            titleTa: 'ஆர்டர் பெறப்பட்டது',
+            description: isTamil ? 'உணவகம் உங்கள் ஆர்டரை பெற்றது' : 'Order confirmed by restaurant',
+            timestamp: new Date(realOrder.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            isCompleted: currentIdx >= 0,
+            isCurrent: currentIdx === 0,
           },
-          deliveryAddress: {
-            label: 'Home',
-            line1: 'No 45, Sivan Koil North Car Street',
-            line2: 'Near Raja Theatres',
-            city: 'Kalaiyarkoil',
-            pincode: '630551',
+          {
+            step: 'PREPARING',
+            title: isTamil ? 'சமையலறையில் தயாராகிறது' : 'Kitchen Cooking',
+            titleTa: 'சமையலறையில் தயாராகிறது',
+            description: isTamil ? 'செட்டிநாடு சுவையான உணவுகள் தயாராகிறது' : 'Chef is preparing hot Chettinad dishes',
+            timestamp: currentIdx >= 2 ? 'In progress' : undefined,
+            isCompleted: currentIdx >= 2,
+            isCurrent: currentIdx === 1 || currentIdx === 2,
           },
-          timeline: [
-            {
-              step: 'PLACED',
-              title: isTamil ? 'ஆர்டர் பெறப்பட்டது' : 'Order Placed',
-              titleTa: 'ஆர்டர் பெறப்பட்டது',
-              description: isTamil ? 'உணவகம் உங்கள் ஆர்டரை பெற்றது' : 'Order confirmed by restaurant',
-              timestamp: '12:45 PM',
-              isCompleted: true,
-              isCurrent: false,
-            },
-            {
-              step: 'PREPARING',
-              title: isTamil ? 'சமையலறையில் தயாராகிறது' : 'Kitchen Cooking',
-              titleTa: 'சமையலறையில் தயாராகிறது',
-              description: isTamil ? 'செட்டிநாடு பிரியாணி தயாராகிறது' : 'Chef is preparing hot Chettinad dishes',
-              timestamp: '12:50 PM',
-              isCompleted: true,
-              isCurrent: false,
-            },
-            {
-              step: 'READY',
-              title: isTamil ? 'உணவு பேக் செய்யப்பட்டது' : 'Packed & Ready',
-              titleTa: 'உணவு பேக் செய்யப்பட்டது',
-              description: isTamil ? 'டெலிவரிக்கு தயாராக வைக்கப்பட்டுள்ளது' : 'Packed hot in tamper-proof container',
-              timestamp: '01:02 PM',
-              isCompleted: true,
-              isCurrent: false,
-            },
-            {
-              step: 'PICKED_UP',
-              title: isTamil ? 'பார்ட்னர் பெற்றுக் கொண்டார்' : 'Picked Up by Partner',
-              titleTa: 'பார்ட்னர் பெற்றுக் கொண்டார்',
-              description: isTamil ? 'முருகன் செல்வம் ஆர்டரை எடுத்தார்' : 'Murugan Selvam picked up your order',
-              timestamp: '01:05 PM',
-              isCompleted: true,
-              isCurrent: false,
-            },
-            {
-              step: 'EN_ROUTE',
-              title: isTamil ? 'உங்கள் முகவரிக்கு வருகிறது' : 'Out for Delivery (On The Way)',
-              titleTa: 'உங்கள் முகவரிக்கு வருகிறது',
-              description: isTamil ? 'டெலிவரி பார்ட்னர் வழியில் உள்ளார்' : 'Driver is driving towards your location',
-              timestamp: '01:08 PM',
-              isCompleted: false,
-              isCurrent: true,
-            },
-            {
-              step: 'DELIVERED',
-              title: isTamil ? 'டெலிவரி செய்யப்படும்' : 'Delivered',
-              titleTa: 'டெலிவரி செய்யப்படும்',
-              description: isTamil ? 'OTP சரிபார்த்த பின் ஒப்படைக்கப்படும்' : 'Handover verified with 6-digit OTP',
-              isCompleted: false,
-              isCurrent: false,
-            },
-          ],
-          cancellationAllowed: false,
-          cancellationReason: undefined,
+          {
+            step: 'READY',
+            title: isTamil ? 'உணவு பேக் செய்யப்பட்டது' : 'Packed & Ready',
+            titleTa: 'உணவு பேக் செய்யப்பட்டது',
+            description: isTamil ? 'டெலிவரிக்கு தயாராக வைக்கப்பட்டுள்ளது' : 'Packed hot in tamper-proof container',
+            timestamp: currentIdx >= 3 ? 'Ready' : undefined,
+            isCompleted: currentIdx >= 3,
+            isCurrent: currentIdx === 3,
+          },
+          {
+            step: 'EN_ROUTE',
+            title: isTamil ? 'உங்கள் முகவரிக்கு வருகிறது' : 'Out for Delivery (On The Way)',
+            titleTa: 'உங்கள் முகவரிக்கு வருகிறது',
+            description: isTamil ? 'டெலிவரி பார்ட்னர் வழியில் உள்ளார்' : 'Driver is driving towards your location',
+            timestamp: currentIdx >= 4 ? 'En Route' : undefined,
+            isCompleted: currentIdx >= 4,
+            isCurrent: currentIdx === 4,
+          },
+          {
+            step: 'DELIVERED',
+            title: isTamil ? 'டெலிவரி செய்யப்படும்' : 'Delivered',
+            titleTa: 'டெலிவரி செய்யப்படும்',
+            description: isTamil ? 'OTP சரிபார்த்த பின் ஒப்படைக்கப்படும்' : 'Handover verified with 6-digit OTP',
+            isCompleted: isDelivered,
+            isCurrent: isDelivered,
+          },
+        ];
+
+        const info: DeliveryTrackingInfo = {
+          orderId: realOrder.id,
+          orderNumber: realOrder.orderNumber,
+          status: realOrder.status as any,
+          deliveryStatus: realOrder.status === 'OUT_FOR_DELIVERY' ? 'EN_ROUTE' : isDelivered ? 'DELIVERED' : 'ASSIGNED',
+          estimatedDeliveryAt: (realOrder as any).estimatedDeliveryAt || null,
+          estimatedDeliveryMinutes: realOrder.estimatedDeliveryMinutes || 25,
+          elapsedMinutes: Math.max(0, Math.floor((Date.now() - new Date(realOrder.createdAt).getTime()) / 60000)),
+          deliveryFee: realOrder.deliveryFee || 0,
+          otp: (realOrder as any).otp || null,
+          partner: (realOrder as any).partner || null,
+          deliveryAddress: (realOrder as any).deliveryAddress || null,
+          timeline: mappedTimeline,
+          cancellationAllowed,
+          cancellationReason: (realOrder as any).cancellationReason,
         };
-        setTrackingData(mockInfo);
+
+        setTrackingData(info);
         setLoading(false);
-      }, 500);
+        return;
+      }
     } catch {
-      setLoading(false);
+      // Fallback
     }
+
+    setTrackingData(null);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -169,13 +162,19 @@ export function DeliveryTrackingScreen({ orderId, onBack }: DeliveryTrackingScre
       t('delivery.cancelOrder'),
       t('delivery.cancelOrderConfirm'),
       [
-        { text: 'No', style: 'cancel' },
+        { text: isTamil ? 'இல்லை' : 'No', style: 'cancel' },
         {
-          text: 'Yes, Cancel',
+          text: isTamil ? 'ஆம், ரத்து செய்' : 'Yes, Cancel',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Success', 'Order cancelled successfully.');
-            onBack();
+          onPress: async () => {
+            const ok = await useOrderStore.getState().cancelOrder(orderId, 'Cancelled by customer');
+            if (ok) {
+              Alert.alert(
+                isTamil ? 'வெற்றி' : 'Success',
+                isTamil ? 'ஆர்டர் ரத்து செய்யப்பட்டது.' : 'Order cancelled successfully.'
+              );
+              fetchTracking();
+            }
           },
         },
       ]
@@ -186,7 +185,7 @@ export function DeliveryTrackingScreen({ orderId, onBack }: DeliveryTrackingScre
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
         title={t('delivery.deliveryTracking')}
-        subtitle={trackingData?.orderNumber || 'AR-DEL-8801'}
+        subtitle={trackingData?.orderNumber || (orderId ? `#${orderId.slice(-6)}` : '')}
         showBack
         onBackPress={onBack}
         rightElement={
@@ -204,6 +203,18 @@ export function DeliveryTrackingScreen({ orderId, onBack }: DeliveryTrackingScre
               {isTamil ? 'டெலிவரி நிலவரம் பெறப்படுகிறது...' : 'Loading live tracking...'}
             </Text>
           </View>
+        ) : !trackingData ? (
+          <EmptyState
+            title={isTamil ? 'நேரலை டெலிவரி எதுவும் இல்லை' : 'No Active Delivery Found'}
+            description={
+              isTamil
+                ? 'இந்த ஆர்டருக்கான நேரலை டெலிவரி விவரங்கள் கிடைக்கவில்லை அல்லது இன்னும் ஒதுக்கப்படவில்லை.'
+                : 'No live tracking details found for this order. It may still be pending assignment.'
+            }
+            icon={<Truck size={36} color={Palette.blue700} />}
+            actionTitle={isTamil ? 'திரும்பச் செல்க' : 'Go Back'}
+            onActionPress={onBack}
+          />
         ) : (
           <>
             {/* ── Status & ETA Hero Banner ──────────────────────────────────── */}
@@ -252,9 +263,15 @@ export function DeliveryTrackingScreen({ orderId, onBack }: DeliveryTrackingScre
                     <Text style={[styles.partnerName, { color: colors.textPrimary }]}>
                       {trackingData.partner.name}
                     </Text>
-                    <Text style={[styles.partnerVehicle, { color: colors.textSecondary }]}>
-                      {trackingData.partner.vehicleNumber} • ⭐ {trackingData.partner.rating}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                      <Text style={[styles.partnerVehicle, { color: colors.textSecondary }]}>
+                        {trackingData.partner.vehicleNumber} •
+                      </Text>
+                      <Star size={12} color="#F59E0B" fill="#F59E0B" />
+                      <Text style={[styles.partnerVehicle, { color: colors.textSecondary }]}>
+                        {trackingData.partner.rating}
+                      </Text>
+                    </View>
                   </View>
                   <TouchableOpacity
                     style={styles.callBtn}
@@ -388,11 +405,14 @@ export function DeliveryTrackingScreen({ orderId, onBack }: DeliveryTrackingScre
             </TouchableOpacity>
 
             {!trackingData?.cancellationAllowed && (
-              <Text style={styles.cancellationNote}>
-                {isTamil
-                  ? '🔒 சமையல் துவங்கிவிட்டதால் ஆர்டரை ரத்து செய்ய இயலாது.'
-                  : '🔒 Cooking has started. Cancellation is locked to prevent food waste.'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8 }}>
+                <Lock size={13} color={colors.textTertiary} />
+                <Text style={styles.cancellationNote}>
+                  {isTamil
+                    ? 'சமையல் துவங்கிவிட்டதால் ஆர்டரை ரத்து செய்ய இயலாது.'
+                    : 'Cooking has started. Cancellation is locked to prevent food waste.'}
+                </Text>
+              </View>
             )}
           </>
         )}

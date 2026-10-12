@@ -19,90 +19,11 @@ interface OrderState {
   setActiveOrder: (order: Order | null) => void;
 }
 
-const mockOrders: Order[] = [
-  {
-    id: 'ord-8821',
-    orderNumber: 'AR-ORD-8821',
-    branchId: 'branch-kalaiyarkoil',
-    type: 'HOME_DELIVERY',
-    status: 'PREPARING',
-    subtotal: 350,
-    taxAmount: 17.5,
-    deliveryFee: 0,
-    discountAmount: 40,
-    total: 327.5,
-    totalAmount: 327.5,
-    paymentStatus: 'PAID',
-    paymentMethod: 'UPI',
-    notes: 'Please pack extra chutneys & spicy gravy',
-    estimatedDeliveryMinutes: 25,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    items: [
-      {
-        id: 'it-1',
-        menuItemId: 'item-3',
-        name: 'Seeraga Samba Mutton Biryani',
-        nameTa: 'சீரக சம்பா ஆட்டுக்கறி பிரியாணி',
-        price: 320,
-        quantity: 1,
-        subtotal: 320,
-        addons: [
-          {
-            id: 'ad-1',
-            orderItemId: 'it-1',
-            addonId: 'addon-5',
-            name: 'Boiled Egg',
-            nameTa: 'வேகவைத்த முட்டை',
-            price: 15,
-          },
-        ],
-      },
-      {
-        id: 'it-2',
-        menuItemId: 'item-5',
-        name: 'Kalaiyarkoil Degree Filter Coffee',
-        nameTa: 'காளையார்கோவில் டிகிரி ஃபில்டர் காபி',
-        price: 35,
-        quantity: 1,
-        subtotal: 35,
-        addons: [],
-      },
-    ],
-    statusHistory: [
-      {
-        id: 'hist-1',
-        orderId: 'ord-8821',
-        status: 'PLACED',
-        note: 'Order placed by customer via mobile app',
-        changedBy: null,
-        createdAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-      },
-      {
-        id: 'hist-2',
-        orderId: 'ord-8821',
-        status: 'ACCEPTED',
-        note: 'Order accepted by Kitchen Manager',
-        changedBy: 'kitchen',
-        createdAt: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
-      },
-      {
-        id: 'hist-3',
-        orderId: 'ord-8821',
-        status: 'PREPARING',
-        note: 'Master Chef is cooking in Dum pot',
-        changedBy: 'chef',
-        createdAt: new Date(Date.now() - 1000 * 60 * 4).toISOString(),
-      },
-    ],
-  },
-];
-
 export const useOrderStore = create<OrderState>()(
   persist(
     (set, get) => ({
-      orders: mockOrders,
-      activeOrder: mockOrders[0] ?? null,
+      orders: [],
+      activeOrder: null,
       isLoading: false,
       error: null,
 
@@ -246,13 +167,16 @@ export const useOrderStore = create<OrderState>()(
           const res = await apiFetch('/customer/orders');
           if (res.ok) {
             const json = await res.json();
-            if (json.success && json.data && json.data.length > 0) {
-              set({ orders: json.data, isLoading: false });
+            if (json.success && Array.isArray(json.data)) {
+              const active = json.data.find(
+                (o: Order) => o.status !== 'DELIVERED' && o.status !== 'CANCELLED'
+              ) ?? null;
+              set({ orders: json.data, activeOrder: active, isLoading: false });
               return;
             }
           }
         } catch {
-          // Fallback to existing orders
+          // Network error or offline
         }
         set({ isLoading: false });
       },

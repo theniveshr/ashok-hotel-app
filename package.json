@@ -24,6 +24,8 @@
     "mobile": "npm --workspace @ashok-raj/mobile run start",
     "mobile:android": "npm --workspace @ashok-raj/mobile run android",
     "mobile:ios": "npm --workspace @ashok-raj/mobile run ios",
+    "mobile:sync": "powershell -ExecutionPolicy Bypass -File ./scripts/sync-mobile-env.ps1",
+    "mobile:clear": "powershell -ExecutionPolicy Bypass -File ./scripts/start-mobile.ps1 -c",
     "mobile:typecheck": "npm --workspace @ashok-raj/mobile run typecheck",
     "api": "npm --workspace @ashok-raj/api run dev",
     "admin": "npm --workspace @ashok-raj/admin run dev",

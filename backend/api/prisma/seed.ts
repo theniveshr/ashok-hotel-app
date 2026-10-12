@@ -49,47 +49,7 @@ async function main() {
   });
   console.log('✅ Main branch seeded:', mainBranch.name);
 
-  // ── Admin User ─────────────────────────────────────────────────────────────
-  // NOTE: In production, change phone and set a real password reset flow.
-  const adminUser = await prisma.user.upsert({
-    where: { phone: '9999999999' },
-    update: {},
-    create: {
-      phone: '9999999999',
-      name: 'Super Admin',
-      isVerified: true,
-      isActive: true,
-      preferredLanguage: Language.en,
-    },
-  });
-
-  const superAdminRole = await prisma.role.findUniqueOrThrow({
-    where: { name: 'SUPER_ADMIN' },
-  });
-
-  await prisma.userRole.upsert({
-    where: {
-      userId_roleId_branchId: {
-        userId: adminUser.id,
-        roleId: superAdminRole.id,
-        branchId: mainBranch.id,
-      },
-    },
-    update: {},
-    create: {
-      userId: adminUser.id,
-      roleId: superAdminRole.id,
-      branchId: mainBranch.id,
-    },
-  });
-  console.log('✅ Admin user seeded (phone: 9999999999)');
-
-  // ── Loyalty Account for Admin ─────────────────────────────────────────────
-  await prisma.loyaltyAccount.upsert({
-    where: { userId: adminUser.id },
-    update: {},
-    create: { userId: adminUser.id },
-  });
+  // ── Users: none seeded (clean fresh start for new customer and staff registrations) ─
 
   // ── Room Types ─────────────────────────────────────────────────────────────
   const roomTypes = [

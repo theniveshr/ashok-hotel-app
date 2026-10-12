@@ -7,33 +7,7 @@ import {
   type ViewStyle
 } from 'react-native';
 import { Radius, FontSize, Palette } from '@ashok-raj/ui';
-
-/**
- * Status semantic mapping for order/booking statuses.
- * Uses WCAG AA accessible colors.
- */
-const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  // Order statuses
-  CONFIRMED:        { bg: '#DCFCE7', text: '#15803D', dot: '#16A34A' },
-  DELIVERED:        { bg: '#DCFCE7', text: '#15803D', dot: '#16A34A' },
-  COMPLETED:        { bg: '#DCFCE7', text: '#15803D', dot: '#16A34A' },
-  CHECKED_OUT:      { bg: '#DCFCE7', text: '#15803D', dot: '#16A34A' },
-
-  PREPARING:        { bg: '#FEF3C7', text: '#B45309', dot: '#F59E0B' },
-  PENDING:          { bg: '#FEF3C7', text: '#B45309', dot: '#F59E0B' },
-  ACCEPTED:         { bg: '#FEF3C7', text: '#B45309', dot: '#F59E0B' },
-
-  OUT_FOR_DELIVERY: { bg: '#DBEAFE', text: '#1D4ED8', dot: '#2563EB' },
-  CHECKED_IN:       { bg: '#DBEAFE', text: '#1D4ED8', dot: '#2563EB' },
-  EN_ROUTE:         { bg: '#DBEAFE', text: '#1D4ED8', dot: '#2563EB' },
-
-  CANCELLED:        { bg: '#FEE2E2', text: '#B91C1C', dot: '#DC2626' },
-  REJECTED:         { bg: '#FEE2E2', text: '#B91C1C', dot: '#DC2626' },
-  NO_SHOW:          { bg: '#FEE2E2', text: '#B91C1C', dot: '#DC2626' },
-
-  CLEANING:         { bg: '#F0F9FF', text: '#0369A1', dot: '#0EA5E9' },
-  MAINTENANCE:      { bg: '#FFF7ED', text: '#C2410C', dot: '#EA580C' },
-};
+import { useTheme } from '../../theme/ThemeContext';
 
 export type StatusVariant = 'success' | 'warning' | 'error' | 'info' | 'gold' | 'neutral';
 
@@ -57,21 +31,34 @@ export function StatusBadge({
   style,
   text, // legacy alias for label
 }: StatusBadgeProps) {
+  const { isDark } = useTheme();
   const displayLabel = label ?? text ?? status ?? '';
 
-  // Auto-map from status string first, then fall back to variant
-  let c = STATUS_COLORS[status?.toUpperCase() ?? ''] ??
-          STATUS_COLORS[displayLabel?.toUpperCase() ?? ''];
+  const normalized = (status ?? displayLabel).toUpperCase();
 
-  if (!c) {
-    switch (variant) {
-      case 'success': c = { bg: '#DCFCE7', text: '#15803D', dot: '#16A34A' }; break;
-      case 'warning': c = { bg: '#FEF3C7', text: '#B45309', dot: '#F59E0B' }; break;
-      case 'error':   c = { bg: '#FEE2E2', text: '#B91C1C', dot: '#DC2626' }; break;
-      case 'info':
-      case 'gold':    c = { bg: '#DBEAFE', text: '#1D4ED8', dot: '#2563EB' }; break;
-      default:        c = { bg: '#F1F5F9', text: '#475569', dot: '#64748B' };
-    }
+  // Determine semantic category
+  let semanticVariant: StatusVariant = variant || 'neutral';
+  if (['CONFIRMED', 'DELIVERED', 'COMPLETED', 'CHECKED_OUT', 'AVAILABLE'].includes(normalized)) {
+    semanticVariant = 'success';
+  } else if (['PREPARING', 'PENDING', 'ACCEPTED'].includes(normalized)) {
+    semanticVariant = 'warning';
+  } else if (['OUT_FOR_DELIVERY', 'CHECKED_IN', 'EN_ROUTE', 'INSPECTED'].includes(normalized)) {
+    semanticVariant = 'info';
+  } else if (['CANCELLED', 'REJECTED', 'NO_SHOW', 'OCCUPIED'].includes(normalized)) {
+    semanticVariant = 'error';
+  } else if (['GOLD', 'VIP', 'SPECIAL', 'ROYAL'].includes(normalized)) {
+    semanticVariant = 'gold';
+  }
+
+  // Theme-aware color palette (Clean Light Theme)
+  let c: { bg: string; text: string; dot: string };
+  switch (semanticVariant) {
+    case 'success': c = { bg: '#DCFCE7', text: '#15803D', dot: '#16A34A' }; break;
+    case 'warning': c = { bg: '#FEF3C7', text: '#B45309', dot: '#F59E0B' }; break;
+    case 'error':   c = { bg: '#FEE2E2', text: '#B91C1C', dot: '#DC2626' }; break;
+    case 'info':    c = { bg: '#DBEAFE', text: '#1D4ED8', dot: '#2563EB' }; break;
+    case 'gold':    c = { bg: '#EFF6FF', text: '#1D4ED8', dot: '#2563EB' }; break;
+    default:        c = { bg: '#F1F5F9', text: '#475569', dot: '#64748B' };
   }
 
   const isSmall = size === 'sm';

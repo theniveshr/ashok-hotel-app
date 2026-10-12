@@ -13,7 +13,7 @@ export const auth = {
 
   // Phone
   enterPhone: 'Enter Mobile Number',
-  phonePlaceholder: '10-digit mobile number',
+  phonePlaceholder: 'Enter mobile number',
   phoneHint: 'We will send a verification code to this number',
   sendOtp: 'Send OTP',
   resendOtp: 'Resend OTP',
@@ -23,7 +23,7 @@ export const auth = {
   verifyPhone: 'Verify Mobile Number',
   enterOtp: 'Enter OTP',
   otpSentTo: 'OTP sent to {{phone}}',
-  otpPlaceholder: '6-digit code',
+  otpPlaceholder: 'Enter 6-digit OTP',
   verifyOtp: 'Verify',
   otpExpired: 'OTP has expired. Please request a new one.',
   otpInvalid: 'Invalid OTP. Please check and try again.',
@@ -32,7 +32,7 @@ export const auth = {
   yourName: 'Your Name',
   namePlaceholder: 'Enter your full name',
   emailOptional: 'Email Address (Optional)',
-  emailPlaceholder: 'your@email.com',
+  emailPlaceholder: 'Enter Your email address',
   completeProfile: 'Complete Profile',
 
   // Errors

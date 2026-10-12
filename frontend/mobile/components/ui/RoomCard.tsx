@@ -13,6 +13,7 @@ import {
 import { Users, Bed, Heart, Plus, ChevronRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from '../../i18n';
+import { useTheme } from '../../theme/ThemeContext';
 import { Radius, Spacing, FontSize, Palette } from '@ashok-raj/ui';
 
 export interface RoomCardProps {
@@ -64,6 +65,7 @@ export function RoomCard({
   style,
 }: RoomCardProps) {
   const { isTamil } = useTranslation();
+  const { colors, isDark } = useTheme();
   const [isFavorite, setIsFavorite] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [fallbackFailed, setFallbackFailed] = useState(false);
@@ -103,12 +105,19 @@ export function RoomCard({
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.88}
-        style={[styles.compactCard, style]}
+        style={[
+          styles.compactCard,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+          },
+          style,
+        ]}
       >
         <View style={styles.compactImageWrap}>
           {fallbackFailed ? (
-            <View style={[styles.image, { backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' }]}>
-              <Bed size={22} color="#94A3B8" />
+            <View style={[styles.image, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F1F5F9', justifyContent: 'center', alignItems: 'center' }]}>
+              <Bed size={22} color={colors.textTertiary} />
             </View>
           ) : (
             <Image
@@ -122,6 +131,7 @@ export function RoomCard({
             onPress={toggleFavorite}
             style={styles.favoriteButton}
             activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Heart
               size={16}
@@ -133,25 +143,32 @@ export function RoomCard({
         </View>
 
         <View style={styles.compactBody}>
-          <Text style={styles.compactTitle} numberOfLines={1}>
+          <Text style={[styles.compactTitle, { color: colors.textPrimary }]} numberOfLines={1}>
             {displayName}
           </Text>
-          <Text style={styles.compactSubtitle} numberOfLines={1}>
+          <Text style={[styles.compactSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
             {`${safeOccupancy} ${isTamil ? 'விருந்தினர்' : 'Guests'} • ${isAc ? 'AC' : 'Non-AC'} • Wi-Fi`}
           </Text>
 
           <View style={styles.compactBottomRow}>
             <View style={styles.priceRow}>
-              <Text style={styles.compactPrice}>₹{safePrice.toLocaleString()}</Text>
-              <Text style={styles.compactPerNight}> / night</Text>
+              <Text style={[styles.compactPrice, { color: colors.textAccent }]}>₹{safePrice.toLocaleString()}</Text>
+              <Text style={[styles.compactPerNight, { color: colors.textSecondary }]}> / night</Text>
             </View>
 
             <TouchableOpacity
               onPress={handleBook}
-              style={styles.addButton}
+              style={[
+                styles.addButton,
+                {
+                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                  borderColor: colors.accent,
+                },
+              ]}
               activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Plus size={16} color={Palette.blue700} strokeWidth={2.5} />
+              <Plus size={16} color={colors.accent} strokeWidth={2.5} />
             </TouchableOpacity>
           </View>
         </View>
@@ -163,12 +180,19 @@ export function RoomCard({
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.88}
-      style={[styles.card, style]}
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+        },
+        style,
+      ]}
     >
       <View style={styles.imageWrap}>
         {fallbackFailed ? (
-          <View style={[styles.image, { backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' }]}>
-            <Bed size={32} color="#94A3B8" />
+          <View style={[styles.image, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F1F5F9', justifyContent: 'center', alignItems: 'center' }]}>
+            <Bed size={32} color={colors.textTertiary} />
           </View>
         ) : (
           <Image
@@ -178,8 +202,8 @@ export function RoomCard({
             onError={handleImageError}
           />
         )}
-        <View style={[styles.statusBadge, { backgroundColor: isAvailable ? '#DCFCE7' : '#FEE2E2' }]}>
-          <Text style={[styles.statusText, { color: isAvailable ? '#15803D' : '#B91C1C' }]}>
+        <View style={[styles.statusBadge, { backgroundColor: isAvailable ? colors.successBg : colors.errorBg }]}>
+          <Text style={[styles.statusText, { color: isAvailable ? colors.success : colors.error }]}>
             {isAvailable ? (isTamil ? 'கிடைக்கும்' : 'Available') : (isTamil ? 'முழுமை' : 'Full')}
           </Text>
         </View>
@@ -187,33 +211,33 @@ export function RoomCard({
 
       <View style={styles.body}>
         <View style={styles.headerRow}>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
             {displayName}
           </Text>
           <View style={styles.priceContainer}>
-            <Text style={styles.price}>₹{safePrice.toLocaleString()}</Text>
-            <Text style={styles.perNight}> / {isTamil ? 'இரவு' : 'night'}</Text>
+            <Text style={[styles.price, { color: colors.textAccent }]}>₹{safePrice.toLocaleString()}</Text>
+            <Text style={[styles.perNight, { color: colors.textSecondary }]}> / {isTamil ? 'இரவு' : 'night'}</Text>
           </View>
         </View>
 
         {description ? (
-          <Text style={styles.description} numberOfLines={2}>
+          <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={2}>
             {description}
           </Text>
         ) : null}
 
         <View style={styles.tagsRow}>
-          <View style={styles.tagPill}>
-            <Users size={12} color={Palette.blue700} />
-            <Text style={styles.tagText}>{safeOccupancy} {isTamil ? 'பேர்' : 'Guests'}</Text>
+          <View style={[styles.tagPill, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+            <Users size={12} color={colors.accent} />
+            <Text style={[styles.tagText, { color: colors.textPrimary }]}>{safeOccupancy} {isTamil ? 'பேர்' : 'Guests'}</Text>
           </View>
-          <View style={styles.tagPill}>
-            <Bed size={12} color={Palette.blue700} />
-            <Text style={styles.tagText}>{bedType}</Text>
+          <View style={[styles.tagPill, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+            <Bed size={12} color={colors.accent} />
+            <Text style={[styles.tagText, { color: colors.textPrimary }]}>{bedType}</Text>
           </View>
           {isAc && (
-            <View style={styles.tagPill}>
-              <Text style={styles.tagText}>AC</Text>
+            <View style={[styles.tagPill, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+              <Text style={[styles.tagText, { color: colors.textPrimary }]}>AC</Text>
             </View>
           )}
         </View>
@@ -221,10 +245,16 @@ export function RoomCard({
         <TouchableOpacity
           onPress={handleBook}
           disabled={!isAvailable}
-          style={[styles.bookBtn, !isAvailable && styles.bookBtnDisabled]}
+          style={[
+            styles.bookBtn,
+            {
+              backgroundColor: colors.primary,
+            },
+            !isAvailable && styles.bookBtnDisabled,
+          ]}
           activeOpacity={0.8}
         >
-          <Text style={styles.bookBtnText}>
+          <Text style={[styles.bookBtnText, { color: '#FFFFFF' }]}>
             {isTamil ? 'அறை முன்பதிவு செய்க' : 'Book Room'}
           </Text>
           <ChevronRight size={16} color="#FFFFFF" />

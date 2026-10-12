@@ -5,11 +5,13 @@ import {
   View,
   ScrollView
 } from 'react-native';
-import { Utensils, Hotel, Tag, Bell } from 'lucide-react-native';
+import { Utensils, Bell } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useTranslation } from '../i18n';
 import { Header } from '../components/ui/Header';
-import { Radius, Spacing, FontSize } from '@ashok-raj/ui';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Radius, Spacing, FontSize, Palette } from '@ashok-raj/ui';
+import { useOrderStore } from '../store/useOrderStore';
 
 export interface NotificationsScreenProps {
   onBack: () => void;
@@ -18,48 +20,21 @@ export interface NotificationsScreenProps {
 export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
   const { colors } = useTheme();
   const { t, isTamil } = useTranslation();
+  const orders = useOrderStore((state) => state.orders);
 
-  const notifications = [
-    {
-      id: 'notif-1',
-      type: 'ORDER',
-      icon: Utensils,
-      iconBg: 'rgba(204, 146, 0, 0.15)',
-      iconColor: colors.accent,
-      title: isTamil ? 'ஆர்டர் தயாரிக்கப்படுகிறது' : 'Order Preparing',
-      body: isTamil
-        ? 'உங்கள் ஆர்டர் #AR-ORD-8821 சமையலறையில் தயாரிக்கப்படுகிறது.'
-        : 'Chef has started preparing your order #AR-ORD-8821.',
-      time: '10 mins ago',
-      isUnread: true,
-    },
-    {
-      id: 'notif-2',
-      type: 'BOOKING',
-      icon: Hotel,
-      iconBg: 'rgba(0, 102, 204, 0.15)',
-      iconColor: colors.info,
-      title: isTamil ? 'அறை முன்பதிவு உறுதி' : 'Booking Confirmed',
-      body: isTamil
-        ? 'டீலக்ஸ் குளிரூட்டி அறை #104 முன்பதிவு உறுதி செய்யப்பட்டது.'
-        : 'Your stay at Deluxe AC Room #104 has been confirmed.',
-      time: '2 hours ago',
-      isUnread: false,
-    },
-    {
-      id: 'notif-3',
-      type: 'OFFER',
-      icon: Tag,
-      iconBg: 'rgba(26, 122, 74, 0.15)',
-      iconColor: colors.success,
-      title: isTamil ? 'வார இறுதி 20% சலுகை' : 'Weekend 20% Discount',
-      body: isTamil
-        ? 'ASHOKRAJ20 கூப்பனை பயன்படுத்தி 20% தள்ளுபடி பெறுங்கள்.'
-        : 'Use coupon ASHOKRAJ20 to get flat 20% off on all dine-in orders.',
-      time: '1 day ago',
-      isUnread: false,
-    },
-  ];
+  const notifications = orders.map((o) => ({
+    id: `notif-order-${o.id}`,
+    type: 'ORDER',
+    icon: Utensils,
+    iconBg: 'rgba(37, 99, 235, 0.12)',
+    iconColor: Palette.blue700,
+    title: isTamil ? `ஆர்டர் #${o.orderNumber}` : `Order #${o.orderNumber}`,
+    body: isTamil
+      ? `ஆர்டர் நிலை: ${o.status}. மொத்தம்: ₹${o.totalAmount || o.total}`
+      : `Order status is currently ${o.status}. Total: ₹${o.totalAmount || o.total}`,
+    time: new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    isUnread: o.status !== 'DELIVERED' && o.status !== 'CANCELLED',
+  }));
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -70,44 +45,56 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.list}>
-          {notifications.map((n) => {
-            const IconComp = n.icon;
-            return (
-              <View
-                key={n.id}
-                style={[
-                  styles.card,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: n.isUnread ? colors.accent : colors.border,
-                  },
-                ]}
-              >
-                <View style={[styles.iconWrap, { backgroundColor: n.iconBg }]}>
-                  <IconComp size={20} color={n.iconColor} />
-                </View>
-
-                <View style={styles.content}>
-                  <View style={styles.headRow}>
-                    <Text style={[styles.title, { color: colors.textPrimary }]}>
-                      {n.title}
-                    </Text>
-                    {n.isUnread && (
-                      <View style={[styles.unreadDot, { backgroundColor: colors.accent }]} />
-                    )}
+        {notifications.length === 0 ? (
+          <EmptyState
+            title={isTamil ? 'அறிவிப்புகள் எதுவும் இல்லை' : 'No Notifications'}
+            description={
+              isTamil
+                ? 'உங்கள் உணவு ஆர்டர்கள் மற்றும் முன்பதிவுகள் தொடர்பான அறிவிப்புகள் இங்கு தோன்றும்.'
+                : "You're all caught up! Updates regarding your food orders and stays will appear here."
+            }
+            icon={<Bell size={36} color={Palette.blue700} />}
+          />
+        ) : (
+          <View style={styles.list}>
+            {notifications.map((n) => {
+              const IconComp = n.icon;
+              return (
+                <View
+                  key={n.id}
+                  style={[
+                    styles.card,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: n.isUnread ? Palette.blue700 : colors.border,
+                    },
+                  ]}
+                >
+                  <View style={[styles.iconWrap, { backgroundColor: n.iconBg }]}>
+                    <IconComp size={20} color={n.iconColor} />
                   </View>
-                  <Text style={[styles.body, { color: colors.textSecondary }]}>
-                    {n.body}
-                  </Text>
-                  <Text style={[styles.time, { color: colors.textTertiary }]}>
-                    {n.time}
-                  </Text>
+
+                  <View style={styles.content}>
+                    <View style={styles.headRow}>
+                      <Text style={[styles.title, { color: colors.textPrimary }]}>
+                        {n.title}
+                      </Text>
+                      {n.isUnread && (
+                        <View style={[styles.unreadDot, { backgroundColor: Palette.blue700 }]} />
+                      )}
+                    </View>
+                    <Text style={[styles.body, { color: colors.textSecondary }]}>
+                      {n.body}
+                    </Text>
+                    <Text style={[styles.time, { color: colors.textTertiary }]}>
+                      {n.time}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            );
-          })}
-        </View>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
     </View>
   );

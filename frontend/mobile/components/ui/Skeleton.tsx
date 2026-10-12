@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   View,
   Animated,
+  AccessibilityInfo,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -22,10 +23,23 @@ export function Skeleton({
   borderRadius = Radius.md,
   style,
 }: SkeletonProps) {
-  const { isDark } = useTheme();
+  const { colors, isDark } = useTheme();
   const shimmer = useRef(new Animated.Value(0.35)).current;
+  const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      sub?.remove?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      shimmer.setValue(0.5);
+      return;
+    }
     const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(shimmer, {
@@ -42,7 +56,7 @@ export function Skeleton({
     );
     animation.start();
     return () => animation.stop();
-  }, [shimmer]);
+  }, [shimmer, reduceMotion]);
 
   return (
     <View

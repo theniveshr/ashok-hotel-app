@@ -4,14 +4,15 @@ import {
   StyleSheet,
   View,
   TouchableOpacity,
+  Platform,
   type StyleProp,
-  type ViewStyle
+  type ViewStyle,
 } from 'react-native';
 import { ChevronLeft, Bell, Globe, MapPin } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../theme/ThemeContext';
 import { useTranslation } from '../../i18n';
-import { Radius, Spacing, FontSize, Palette } from '@ashok-raj/ui';
+import { Radius, Spacing, FontSize, TouchTarget } from '@ashok-raj/ui';
 
 export interface HeaderProps {
   title?: string;
@@ -25,7 +26,6 @@ export interface HeaderProps {
   showLocationBadge?: boolean;
   locationText?: string;
   rightAction?: React.ReactNode;
-  /** Backwards-compatible alias used by older screens. */
   rightElement?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }
@@ -63,8 +63,8 @@ export function Header({
       style={[
         styles.container,
         {
-          backgroundColor: isDark ? colors.surface : colors.surfaceElevated,
-          borderBottomColor: colors.border,
+          backgroundColor: colors.glass,
+          borderBottomColor: colors.glassBorder,
         },
         style,
       ]}
@@ -73,8 +73,16 @@ export function Header({
         {showBack && (
           <TouchableOpacity
             onPress={handleBack}
-            style={[styles.iconBtn, { backgroundColor: colors.surfaceElevated }]}
+            style={[
+              styles.iconBtn,
+              {
+                backgroundColor: colors.surfaceElevated,
+                borderColor: colors.border,
+              },
+            ]}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <ChevronLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
@@ -82,8 +90,15 @@ export function Header({
 
         {showLocationBadge && (
           <View style={styles.locationGroup}>
-            <View style={styles.locationPin}>
-              <MapPin size={14} color={colors.accent} />
+            <View
+              style={[
+                styles.locationPin,
+                {
+                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                },
+              ]}
+            >
+              <MapPin size={15} color={colors.accent} />
             </View>
             <View>
               <Text style={[styles.locationLabel, { color: colors.textSecondary }]}>
@@ -97,12 +112,12 @@ export function Header({
         )}
 
         {title && !showLocationBadge && (
-          <View>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
               {title}
             </Text>
             {subtitle && (
-              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>
                 {subtitle}
               </Text>
             )}
@@ -122,6 +137,8 @@ export function Header({
               },
             ]}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle language"
           >
             <Globe size={14} color={colors.accent} />
             <Text style={[styles.langText, { color: colors.accent }]}>
@@ -133,8 +150,16 @@ export function Header({
         {showNotifications && (
           <TouchableOpacity
             onPress={onNotificationsPress}
-            style={[styles.iconBtn, { backgroundColor: colors.surfaceElevated }]}
+            style={[
+              styles.iconBtn,
+              {
+                backgroundColor: colors.surfaceElevated,
+                borderColor: colors.border,
+              },
+            ]}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
           >
             <Bell size={18} color={colors.textPrimary} />
             {notificationsCount > 0 && (
@@ -159,8 +184,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
     borderBottomWidth: 1,
+    ...Platform.select({
+      web: {
+        backdropFilter: 'blur(10px)',
+      },
+    }),
   },
   leftRow: {
     flexDirection: 'row',
@@ -174,16 +204,18 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   iconBtn: {
-    width: 38,
-    height: 38,
+    minWidth: TouchTarget.minWidth,
+    minHeight: TouchTarget.minHeight,
     borderRadius: Radius.full,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
   title: {
     fontSize: FontSize.lg,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   subtitle: {
     fontSize: FontSize.xs + 1,
@@ -196,10 +228,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   locationPin: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     borderRadius: Radius.full,
-    backgroundColor: 'rgba(37, 99, 235, 0.10)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -215,9 +246,9 @@ const styles = StyleSheet.create({
   langToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: 5,
+    minHeight: TouchTarget.minHeight,
+    paddingHorizontal: 12,
     borderRadius: Radius.full,
     borderWidth: 1,
   },
@@ -227,8 +258,8 @@ const styles = StyleSheet.create({
   },
   badge: {
     position: 'absolute',
-    top: 2,
-    right: 2,
+    top: 4,
+    right: 4,
     minWidth: 16,
     height: 16,
     borderRadius: 8,
@@ -237,7 +268,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   badgeText: {
-    color: '#FFFFFF',
+    color: '#070C1E',
     fontSize: 9,
     fontWeight: '800',
   },
