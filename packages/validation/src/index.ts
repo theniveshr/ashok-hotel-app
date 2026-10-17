@@ -65,10 +65,17 @@ export const RefreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
 });
 
-export const PasswordLoginSchema = z.object({
-  phone: PhoneSchema,
-  password: z.string().min(6, 'Password must be at least 6 characters').max(100),
-});
+export const PasswordLoginSchema = z
+  .object({
+    phone: z.string().trim().optional(),
+    email: z.string().trim().email('Invalid email address').optional(),
+    identifier: z.string().trim().min(3, 'Enter mobile number or email').optional(),
+    password: z.string().min(6, 'Password must be at least 6 characters').max(100),
+  })
+  .refine((data) => Boolean(data.identifier || data.phone || data.email), {
+    message: 'Please provide your registered phone number or email',
+    path: ['identifier'],
+  });
 
 export const ResetPasswordSchema = z.object({
   phone: PhoneSchema,
@@ -91,16 +98,26 @@ export const UpdateProfileSchema = z.object({
 
 export const AddressSchema = z.object({
   label: z.string().trim().min(1).max(50),
-  line1: z.string().trim().min(5).max(200),
-  line2: z.string().trim().max(200).optional(),
+  line1: z.string().trim().min(2).max(200),
+  line2: z.string().trim().max(200).optional().nullable(),
+  recipientName: z.string().trim().max(100).optional().nullable(),
+  recipientPhone: z.string().trim().max(15).optional().nullable(),
+  houseNumber: z.string().trim().max(100).optional().nullable(),
+  buildingName: z.string().trim().max(100).optional().nullable(),
+  streetName: z.string().trim().max(150).optional().nullable(),
+  area: z.string().trim().max(100).optional().nullable(),
+  landmark: z.string().trim().max(150).optional().nullable(),
+  country: z.string().trim().max(50).default('India').optional(),
+  formattedAddress: z.string().trim().optional().nullable(),
+  deliveryInstructions: z.string().trim().optional().nullable(),
   city: z.string().trim().min(1).max(100),
   state: z.string().trim().min(1).max(100),
   pincode: z
     .string()
     .trim()
     .regex(/^\d{6}$/, 'Enter a valid 6-digit pincode'),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
+  lat: z.number().optional().nullable(),
+  lng: z.number().optional().nullable(),
   isDefault: z.boolean().default(false),
 });
 
@@ -108,6 +125,12 @@ export const CreateAddressSchema = AddressSchema;
 export const UpdateAddressSchema = AddressSchema.partial();
 export type CreateAddressInput = z.infer<typeof CreateAddressSchema>;
 export type UpdateAddressInput = z.infer<typeof UpdateAddressSchema>;
+
+export const UpdateTourStatusSchema = z.object({
+  status: z.enum(['not_started', 'completed', 'skipped']),
+  lastCompletedStep: z.number().int().min(1).max(6).optional(),
+});
+export type UpdateTourStatusInput = z.infer<typeof UpdateTourStatusSchema>;
 
 // ─── Restaurant Menu (Category & Items) ───────────────────────────────────────
 

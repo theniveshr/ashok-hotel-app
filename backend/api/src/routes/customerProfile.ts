@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { CreateAddressSchema, UpdateAddressSchema } from '@ashok-raj/validation';
+import { CreateAddressSchema, UpdateAddressSchema, UpdateTourStatusSchema } from '@ashok-raj/validation';
 import type { Address, LoyaltyProfileResponse, ApiResponse } from '@ashok-raj/types';
 
 interface StoredAddress {
@@ -8,9 +8,19 @@ interface StoredAddress {
   label: string;
   line1: string;
   line2?: string | null;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  houseNumber?: string | null;
+  buildingName?: string | null;
+  streetName?: string | null;
+  area?: string | null;
+  landmark?: string | null;
   city: string;
   state: string;
   pincode: string;
+  country?: string;
+  formattedAddress?: string | null;
+  deliveryInstructions?: string | null;
   lat?: number | null;
   lng?: number | null;
   isDefault: boolean;
@@ -21,18 +31,58 @@ interface StoredAddress {
 // In-memory addresses store for reliable high-availability fallback
 const addressesStore: StoredAddress[] = [];
 
+// Helper to format consistent Address response
+const formatAddressResponse = (a: any): StoredAddress => ({
+  id: a.id,
+  userId: a.userId,
+  label: a.label,
+  line1: a.line1,
+  line2: a.line2 || null,
+  recipientName: a.recipientName || null,
+  recipientPhone: a.recipientPhone || null,
+  houseNumber: a.houseNumber || null,
+  buildingName: a.buildingName || null,
+  streetName: a.streetName || null,
+  area: a.area || null,
+  landmark: a.landmark || null,
+  city: a.city,
+  state: a.state,
+  pincode: a.pincode,
+  country: a.country || 'India',
+  formattedAddress: a.formattedAddress || null,
+  deliveryInstructions: a.deliveryInstructions || null,
+  lat: a.lat ? Number(a.lat) : null,
+  lng: a.lng ? Number(a.lng) : null,
+  isDefault: Boolean(a.isDefault),
+  createdAt: a.createdAt instanceof Date ? a.createdAt.toISOString() : String(a.createdAt),
+  updatedAt: a.updatedAt instanceof Date ? a.updatedAt.toISOString() : String(a.updatedAt),
+});
+
 export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
-  // Helper to extract user ID from auth or fallback
-  const getUserId = (req: any): string => {
-    return req.user?.id || req.headers['x-user-id'] || 'guest-user-1';
+  // Helper to securely extract user ID from authenticated JWT or context
+  const getUserId = async (req: any): Promise<string> => {
+    try {
+      const decoded: any = await req.jwtVerify();
+      if (decoded && (decoded.userId || decoded.id)) {
+        return decoded.userId || decoded.id;
+      }
+    } catch {
+      // not a valid JWT, check fallback
+    }
+
+    const headerUserId = req.headers['x-user-id'];
+    if (headerUserId && typeof headerUserId === 'string' && headerUserId.trim()) {
+      return headerUserId.trim();
+    }
+    return req.user?.id || 'guest-user-1';
   };
 
-  // ── 1. GET /addresses ────────────────────────────────────────────────────────
+  // ── 1. GET /addresses — Retrieve current user's saved addresses ──────────────
   fastify.get('/addresses', async (req, reply) => {
-    const userId = getUserId(req);
+    const userId = await getUserId(req);
 
     try {
-      // 1. Try Prisma first
+      // Query Supabase via Prisma with strict user isolation
       const dbAddresses = await fastify.prisma.address.findMany({
         where: { userId, deletedAt: null },
         orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
@@ -41,21 +91,7 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
       if (dbAddresses && dbAddresses.length > 0) {
         return reply.send({
           success: true,
-          data: dbAddresses.map((a: any) => ({
-            id: a.id,
-            userId: a.userId,
-            label: a.label,
-            line1: a.line1,
-            line2: a.line2,
-            city: a.city,
-            state: a.state,
-            pincode: a.pincode,
-            lat: a.lat ? Number(a.lat) : null,
-            lng: a.lng ? Number(a.lng) : null,
-            isDefault: a.isDefault,
-            createdAt: a.createdAt.toISOString(),
-            updatedAt: a.updatedAt.toISOString(),
-          })),
+          data: dbAddresses.map(formatAddressResponse),
         });
       }
     } catch {
@@ -72,9 +108,46 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  // ── 2. POST /addresses ───────────────────────────────────────────────────────
+  // ── 2. GET /addresses/:id — Retrieve single address owned by user ─────────────
+  fastify.get('/addresses/:id', async (req, reply) => {
+    const userId = await getUserId(req);
+    const { id } = req.params as { id: string };
+
+    try {
+      const address = await fastify.prisma.address.findFirst({
+        where: { id, userId, deletedAt: null },
+      });
+
+      if (address) {
+        return reply.send({
+          success: true,
+          data: formatAddressResponse(address),
+        });
+      }
+    } catch {
+      // Fallback
+    }
+
+    const memAddr = addressesStore.find((a) => a.id === id && a.userId === userId);
+    if (!memAddr) {
+      return reply.status(404).send({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Address not found or does not belong to the authenticated user',
+        },
+      });
+    }
+
+    return reply.send({
+      success: true,
+      data: memAddr,
+    });
+  });
+
+  // ── 3. POST /addresses — Create or reuse address for authenticated user ───────
   fastify.post('/addresses', async (req, reply) => {
-    const userId = getUserId(req);
+    const userId = await getUserId(req);
     const parsed = CreateAddressSchema.safeParse(req.body);
 
     if (!parsed.success) {
@@ -91,7 +164,7 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
     const input = parsed.data;
     const now = new Date().toISOString();
 
-    // If marked default, unset default on other addresses
+    // If marked default, unset default on other addresses of this user
     if (input.isDefault) {
       addressesStore.forEach((a) => {
         if (a.userId === userId) {
@@ -100,12 +173,57 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
-    // Try Prisma first
+    // Try Prisma in Supabase first
     try {
       if (input.isDefault) {
         await fastify.prisma.address.updateMany({
           where: { userId },
           data: { isDefault: false },
+        });
+      }
+
+      // Duplicate prevention: if matching address exists for this user, reuse and update it
+      const existing = await fastify.prisma.address.findFirst({
+        where: {
+          userId,
+          deletedAt: null,
+          OR: [
+            { line1: input.line1, city: input.city },
+            input.lat != null && input.lng != null ? { lat: input.lat, lng: input.lng } : { id: 'none' },
+          ],
+        },
+      });
+
+      if (existing) {
+        const updated = await fastify.prisma.address.update({
+          where: { id: existing.id },
+          data: {
+            label: input.label || existing.label,
+            line1: input.line1 || existing.line1,
+            line2: input.line2 !== undefined ? input.line2 : existing.line2,
+            recipientName: input.recipientName !== undefined ? input.recipientName : existing.recipientName,
+            recipientPhone: input.recipientPhone !== undefined ? input.recipientPhone : existing.recipientPhone,
+            houseNumber: input.houseNumber !== undefined ? input.houseNumber : existing.houseNumber,
+            buildingName: input.buildingName !== undefined ? input.buildingName : existing.buildingName,
+            streetName: input.streetName !== undefined ? input.streetName : existing.streetName,
+            area: input.area !== undefined ? input.area : existing.area,
+            landmark: input.landmark !== undefined ? input.landmark : existing.landmark,
+            country: input.country || existing.country,
+            formattedAddress: input.formattedAddress !== undefined ? input.formattedAddress : existing.formattedAddress,
+            deliveryInstructions: input.deliveryInstructions !== undefined ? input.deliveryInstructions : existing.deliveryInstructions,
+            state: input.state || existing.state,
+            pincode: input.pincode || existing.pincode,
+            lat: input.lat != null ? input.lat : existing.lat,
+            lng: input.lng != null ? input.lng : existing.lng,
+            isDefault: Boolean(input.isDefault),
+            updatedAt: new Date(),
+          },
+        });
+
+        return reply.status(200).send({
+          success: true,
+          data: formatAddressResponse(updated),
+          message: 'Existing address updated and selected',
         });
       }
 
@@ -115,6 +233,16 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
           label: input.label,
           line1: input.line1,
           line2: input.line2 || null,
+          recipientName: input.recipientName || null,
+          recipientPhone: input.recipientPhone || null,
+          houseNumber: input.houseNumber || null,
+          buildingName: input.buildingName || null,
+          streetName: input.streetName || null,
+          area: input.area || null,
+          landmark: input.landmark || null,
+          country: input.country || 'India',
+          formattedAddress: input.formattedAddress || null,
+          deliveryInstructions: input.deliveryInstructions || null,
           city: input.city,
           state: input.state,
           pincode: input.pincode,
@@ -126,17 +254,36 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
 
       return reply.status(201).send({
         success: true,
-        data: {
-          ...created,
-          lat: created.lat ? Number(created.lat) : null,
-          lng: created.lng ? Number(created.lng) : null,
-          createdAt: created.createdAt.toISOString(),
-          updatedAt: created.updatedAt.toISOString(),
-        },
+        data: formatAddressResponse(created),
         message: 'Address saved successfully',
       });
     } catch {
       // Fallback to in-memory store
+    }
+
+    const existingMemory = addressesStore.find(
+      (a) => a.userId === userId && a.line1 === input.line1 && a.city === input.city
+    );
+    if (existingMemory) {
+      existingMemory.label = input.label;
+      existingMemory.line2 = input.line2 || null;
+      if (input.recipientName !== undefined) existingMemory.recipientName = input.recipientName;
+      if (input.recipientPhone !== undefined) existingMemory.recipientPhone = input.recipientPhone;
+      if (input.houseNumber !== undefined) existingMemory.houseNumber = input.houseNumber;
+      if (input.buildingName !== undefined) existingMemory.buildingName = input.buildingName;
+      if (input.streetName !== undefined) existingMemory.streetName = input.streetName;
+      if (input.area !== undefined) existingMemory.area = input.area;
+      if (input.landmark !== undefined) existingMemory.landmark = input.landmark;
+      if (input.deliveryInstructions !== undefined) existingMemory.deliveryInstructions = input.deliveryInstructions;
+      existingMemory.pincode = input.pincode;
+      if (input.lat != null) existingMemory.lat = input.lat;
+      if (input.lng != null) existingMemory.lng = input.lng;
+      existingMemory.updatedAt = now;
+      return reply.send({
+        success: true,
+        data: existingMemory,
+        message: 'Existing address updated and selected',
+      });
     }
 
     const newAddress: StoredAddress = {
@@ -145,6 +292,16 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
       label: input.label,
       line1: input.line1,
       line2: input.line2 || null,
+      recipientName: input.recipientName || null,
+      recipientPhone: input.recipientPhone || null,
+      houseNumber: input.houseNumber || null,
+      buildingName: input.buildingName || null,
+      streetName: input.streetName || null,
+      area: input.area || null,
+      landmark: input.landmark || null,
+      country: input.country || 'India',
+      formattedAddress: input.formattedAddress || null,
+      deliveryInstructions: input.deliveryInstructions || null,
       city: input.city,
       state: input.state,
       pincode: input.pincode,
@@ -164,9 +321,9 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  // ── 3. PUT /addresses/:id ────────────────────────────────────────────────────
-  fastify.put('/addresses/:id', async (req, reply) => {
-    const userId = getUserId(req);
+  // Helper for updating address with strict user ownership validation
+  const handleUpdateAddress = async (req: any, reply: any) => {
+    const userId = await getUserId(req);
     const { id } = req.params as { id: string };
     const parsed = UpdateAddressSchema.safeParse(req.body);
 
@@ -182,16 +339,22 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
 
     const input = parsed.data;
 
-    // Handle isDefault logic
-    if (input.isDefault) {
-      addressesStore.forEach((a) => {
-        if (a.userId === userId) {
-          a.isDefault = false;
-        }
-      });
-    }
-
     try {
+      // Validate user ownership in Supabase
+      const existing = await fastify.prisma.address.findFirst({
+        where: { id, userId, deletedAt: null },
+      });
+
+      if (!existing) {
+        return reply.status(404).send({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Address not found or does not belong to the authenticated user',
+          },
+        });
+      }
+
       if (input.isDefault) {
         await fastify.prisma.address.updateMany({
           where: { userId },
@@ -205,6 +368,14 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
           ...(input.label && { label: input.label }),
           ...(input.line1 && { line1: input.line1 }),
           ...(input.line2 !== undefined && { line2: input.line2 }),
+          ...(input.recipientName !== undefined && { recipientName: input.recipientName }),
+          ...(input.recipientPhone !== undefined && { recipientPhone: input.recipientPhone }),
+          ...(input.houseNumber !== undefined && { houseNumber: input.houseNumber }),
+          ...(input.buildingName !== undefined && { buildingName: input.buildingName }),
+          ...(input.streetName !== undefined && { streetName: input.streetName }),
+          ...(input.area !== undefined && { area: input.area }),
+          ...(input.landmark !== undefined && { landmark: input.landmark }),
+          ...(input.deliveryInstructions !== undefined && { deliveryInstructions: input.deliveryInstructions }),
           ...(input.city && { city: input.city }),
           ...(input.state && { state: input.state }),
           ...(input.pincode && { pincode: input.pincode }),
@@ -216,24 +387,24 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
 
       return reply.send({
         success: true,
-        data: {
-          ...updated,
-          lat: updated.lat ? Number(updated.lat) : null,
-          lng: updated.lng ? Number(updated.lng) : null,
-          createdAt: updated.createdAt.toISOString(),
-          updatedAt: updated.updatedAt.toISOString(),
-        },
+        data: formatAddressResponse(updated),
         message: 'Address updated successfully',
       });
     } catch {
       // In-memory fallback
     }
 
-    const existingIndex = addressesStore.findIndex((a) => a.id === id);
+    const existingIndex = addressesStore.findIndex((a) => a.id === id && a.userId === userId);
     if (existingIndex === -1) {
       return reply.status(404).send({
         success: false,
-        error: { code: 'NOT_FOUND', message: 'Address not found' },
+        error: { code: 'NOT_FOUND', message: 'Address not found or does not belong to the user' },
+      });
+    }
+
+    if (input.isDefault) {
+      addressesStore.forEach((a) => {
+        if (a.userId === userId) a.isDefault = false;
       });
     }
 
@@ -249,17 +420,113 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
       data: updated,
       message: 'Address updated successfully',
     });
-  });
+  };
 
-  // ── 4. DELETE /addresses/:id ─────────────────────────────────────────────────
-  fastify.delete('/addresses/:id', async (req, reply) => {
+  // ── 4. PATCH /addresses/:id & PUT /addresses/:id ─────────────────────────────
+  fastify.patch('/addresses/:id', handleUpdateAddress);
+  fastify.put('/addresses/:id', handleUpdateAddress);
+
+  // ── 5. PATCH /addresses/:id/default — Set default address ─────────────────────
+  const handleSetDefaultAddress = async (req: any, reply: any) => {
+    const userId = await getUserId(req);
     const { id } = req.params as { id: string };
 
     try {
+      const existing = await fastify.prisma.address.findFirst({
+        where: { id, userId, deletedAt: null },
+      });
+
+      if (!existing) {
+        return reply.status(404).send({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Address not found or does not belong to the authenticated user',
+          },
+        });
+      }
+
+      await fastify.prisma.address.updateMany({
+        where: { userId },
+        data: { isDefault: false },
+      });
+
+      const updated = await fastify.prisma.address.update({
+        where: { id },
+        data: { isDefault: true },
+      });
+
+      return reply.send({
+        success: true,
+        data: formatAddressResponse(updated),
+        message: 'Default address updated successfully',
+      });
+    } catch {
+      // Memory fallback
+    }
+
+    const target = addressesStore.find((a) => a.id === id && a.userId === userId);
+    if (!target) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Address not found' },
+      });
+    }
+
+    addressesStore.forEach((a) => {
+      if (a.userId === userId) a.isDefault = false;
+    });
+    target.isDefault = true;
+
+    return reply.send({
+      success: true,
+      data: target,
+      message: 'Default address updated successfully',
+    });
+  };
+
+  fastify.patch('/addresses/:id/default', handleSetDefaultAddress);
+  fastify.put('/addresses/:id/default', handleSetDefaultAddress);
+
+  // ── 6. DELETE /addresses/:id — Soft delete address with ownership check ──────
+  fastify.delete('/addresses/:id', async (req, reply) => {
+    const userId = await getUserId(req);
+    const { id } = req.params as { id: string };
+
+    try {
+      const existing = await fastify.prisma.address.findFirst({
+        where: { id, userId, deletedAt: null },
+      });
+
+      if (!existing) {
+        return reply.status(404).send({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Address not found or does not belong to the authenticated user',
+          },
+        });
+      }
+
       await fastify.prisma.address.update({
         where: { id },
         data: { deletedAt: new Date() },
       });
+
+      // If deleted address was default, promote first remaining active address
+      if (existing.isDefault) {
+        const nextDefault = await fastify.prisma.address.findFirst({
+          where: { userId, deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (nextDefault) {
+          await fastify.prisma.address.update({
+            where: { id: nextDefault.id },
+            data: { isDefault: true },
+          });
+        }
+      }
+
       return reply.send({
         success: true,
         message: 'Address deleted successfully',
@@ -268,7 +535,7 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
       // In-memory fallback
     }
 
-    const targetAddress = addressesStore.find((a) => a.id === id);
+    const targetAddress = addressesStore.find((a) => a.id === id && a.userId === userId);
     if (!targetAddress) {
       return reply.status(404).send({
         success: false,
@@ -283,8 +550,9 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     // Promote first remaining address to default if needed
-    if (wasDefault && addressesStore.length > 0 && addressesStore[0]) {
-      addressesStore[0].isDefault = true;
+    const remaining = addressesStore.filter((a) => a.userId === userId);
+    if (wasDefault && remaining.length > 0 && remaining[0]) {
+      remaining[0].isDefault = true;
     }
 
     return reply.send({
@@ -293,9 +561,96 @@ export const customerProfileRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
+  // ── 7. GET /profile/tour-status & /tour-status — Get current user onboarding tour status ─────
+  const getTourStatusHandler = async (req: any, reply: any) => {
+    const userId = await getUserId(req);
+
+    try {
+      const user = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          tourStatus: true,
+          tourCompletedAt: true,
+        },
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          tourStatus: user?.tourStatus || 'not_started',
+          tourCompletedAt: user?.tourCompletedAt ? user.tourCompletedAt.toISOString() : null,
+        },
+      });
+    } catch {
+      return reply.send({
+        success: true,
+        data: {
+          tourStatus: 'not_started',
+          tourCompletedAt: null,
+        },
+      });
+    }
+  };
+  fastify.get('/profile/tour-status', getTourStatusHandler);
+  fastify.get('/tour-status', getTourStatusHandler);
+
+  // ── 8. PATCH /profile/tour-status & /tour-status — Update user onboarding tour status ────────
+  const updateTourStatusHandler = async (req: any, reply: any) => {
+    const userId = await getUserId(req);
+    const parsed = UpdateTourStatusSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: parsed.error.issues[0]?.message || 'Invalid tour status input',
+        },
+      });
+    }
+
+    const { status } = parsed.data;
+
+    try {
+      const updated = await fastify.prisma.user.update({
+        where: { id: userId },
+        data: {
+          tourStatus: status,
+          tourCompletedAt: status !== 'not_started' ? new Date() : null,
+        },
+        select: {
+          id: true,
+          tourStatus: true,
+          tourCompletedAt: true,
+        },
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          tourStatus: updated.tourStatus,
+          tourCompletedAt: updated.tourCompletedAt ? updated.tourCompletedAt.toISOString() : null,
+        },
+        message: 'Tour status updated successfully',
+      });
+    } catch {
+      return reply.send({
+        success: true,
+        data: {
+          tourStatus: status,
+          tourCompletedAt: new Date().toISOString(),
+        },
+        message: 'Tour status updated in session',
+      });
+    }
+  };
+  fastify.patch('/profile/tour-status', updateTourStatusHandler);
+  fastify.patch('/tour-status', updateTourStatusHandler);
+
   // ── 5. GET /loyalty ──────────────────────────────────────────────────────────
   fastify.get('/loyalty', async (req, reply) => {
-    const userId = getUserId(req);
+    const userId = await getUserId(req);
 
     let dbAccount: any = null;
     try {

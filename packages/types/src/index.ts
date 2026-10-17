@@ -932,11 +932,23 @@ export interface AuditLogEntry {
   createdAt?: string | undefined;
 }
 
+export type TourStatus = 'not_started' | 'completed' | 'skipped';
+
 export interface Address extends BaseEntity, SoftDeletable {
   userId: string;
   label: string;
   line1: string;
   line2?: string | null | undefined;
+  recipientName?: string | null | undefined;
+  recipientPhone?: string | null | undefined;
+  houseNumber?: string | null | undefined;
+  buildingName?: string | null | undefined;
+  streetName?: string | null | undefined;
+  area?: string | null | undefined;
+  landmark?: string | null | undefined;
+  country?: string | undefined;
+  formattedAddress?: string | null | undefined;
+  deliveryInstructions?: string | null | undefined;
   city: string;
   state: string;
   pincode: string;

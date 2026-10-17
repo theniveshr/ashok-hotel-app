@@ -13,7 +13,7 @@ import { useTranslation } from '../i18n';
 import { Header } from '../components/ui/Header';
 import { PrimaryButton } from '../components/ui/PrimaryButton';
 import { PriceSummary } from '../components/ui/PriceSummary';
-import { AddressManagerModal } from '../components/ui/AddressManagerModal';
+import { LocationSelectorModal } from '../components/ui/LocationSelectorModal';
 import { Radius, Spacing, FontSize, Palette } from '@ashok-raj/ui';
 import { useCartStore } from '../store/useCartStore';
 import { useOrderStore } from '../store/useOrderStore';
@@ -57,6 +57,16 @@ export function CheckoutScreen({
   const total = getTotalAmount();
 
   const handlePlaceOrder = async () => {
+    if (deliveryType === 'HOME_DELIVERY' && (!selectedAddress || !selectedAddress.line1)) {
+      alert(
+        isTamil
+          ? 'தயவுசெய்து டெலிவரி முகவரியைத் தேர்ந்தெடுக்கவும் அல்லது புதிய முகவரியை உள்ளிடவும்.'
+          : 'Please select or enter a delivery address before placing order.'
+      );
+      setAddressModalVisible(true);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -129,16 +139,30 @@ export function CheckoutScreen({
             >
               <View style={styles.addressTop}>
                 <View style={styles.addressLeft}>
-                  <View style={[styles.pinCircle, { backgroundColor: 'rgba(204, 146, 0, 0.15)' }]}>
-                    <MapPin size={18} color={Palette.blue700} />
+                  <View style={[styles.pinCircle, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
+                    <MapPin size={18} color="#2563EB" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.addressLabel, { color: colors.textPrimary }]}>
-                      {selectedAddress?.label || (isTamil ? 'வீட்டு முகவரி' : 'Home Address')}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={[styles.addressLabel, { color: colors.textPrimary }]}>
+                        {selectedAddress?.label || (isTamil ? 'வீட்டு முகவரி' : 'Home Address')}
+                      </Text>
+                      {selectedAddress?.recipientName && (
+                        <Text style={{ fontSize: 12, color: colors.textSecondary, fontWeight: '600' }}>
+                          • {selectedAddress.recipientName} {selectedAddress.recipientPhone ? `(${selectedAddress.recipientPhone})` : ''}
+                        </Text>
+                      )}
+                    </View>
                     <Text style={[styles.addressText, { color: colors.textSecondary }]}>
-                      {selectedAddress?.line1 || '14, South Car Street, Near Temple, Kalaiyarkoil, 630551'}
+                      {selectedAddress?.line1 || (isTamil ? 'முகவரி தேர்ந்தெடுக்கப்படவில்லை' : 'No address selected')}
+                      {selectedAddress?.city ? `, ${selectedAddress.city}` : ''}
+                      {selectedAddress?.pincode ? ` - ${selectedAddress.pincode}` : ''}
                     </Text>
+                    {specialInstructions ? (
+                      <Text style={{ fontSize: 11, color: '#2563EB', marginTop: 3, fontWeight: '500' }}>
+                        {isTamil ? 'குறிப்பு:' : 'Note:'} {specialInstructions}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
                 <TouchableOpacity
@@ -151,7 +175,7 @@ export function CheckoutScreen({
                   }}
                   activeOpacity={0.8}
                 >
-                  <Text style={{ color: Palette.blue700, fontWeight: '700', fontSize: 13 }}>
+                  <Text style={{ color: '#2563EB', fontWeight: '700', fontSize: 13 }}>
                     {isTamil ? 'மாற்ற' : 'Change'}
                   </Text>
                 </TouchableOpacity>
@@ -313,24 +337,9 @@ export function CheckoutScreen({
         />
       </View>
 
-      <AddressManagerModal
+      <LocationSelectorModal
         visible={addressModalVisible}
         onClose={() => setAddressModalVisible(false)}
-        onSelectAddress={(addrId) => {
-          const addr = useAddressStore.getState().addresses.find((a) => a.id === addrId);
-          if (addr) {
-            setSelectedAddress({
-              id: addr.id,
-              label: addr.label,
-              line1: addr.line1,
-              line2: addr.line2 || undefined,
-              city: addr.city,
-              pincode: addr.pincode,
-              isDefault: addr.isDefault,
-            });
-            setAddressModalVisible(false);
-          }
-        }}
       />
     </View>
   );

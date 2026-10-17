@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(7, 12, 30, 0.70)',
     ...Platform.select({
       web: {

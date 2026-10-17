@@ -11,10 +11,15 @@ export const BUSINESS = {
   nameTa: 'அசோக் ராஜ் தங்குமிடம் மற்றும் உணவகம் குளிரூட்டி',
   phone: '04575 232 333',
   website: 'https://ashokrajgroups.com',
+  mapsUrl: 'https://www.google.com/maps/place/Ashok+Raj+Lodge+%26+Restaurant+A%2FC/@9.8465627,78.6356551,17z',
+  coordinates: {
+    lat: 9.8465627,
+    lng: 78.6356551,
+  },
   address: {
     line1: 'No-1412, Madurai to Thondi Main Road',
     line2: 'Kalaiyarkoil, opposite Petrol Pump',
-    city: 'Kalayarkoil',
+    city: 'Kalaiyarkoil',
     state: 'Tamil Nadu',
     pincode: '630551',
     landmark: 'Kochi-Madurai-Thondi Point Highway, Murthi Nagar',

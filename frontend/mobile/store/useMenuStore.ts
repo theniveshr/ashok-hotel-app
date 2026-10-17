@@ -6,30 +6,39 @@ export interface ExtendedMenuCategory extends MenuCategory {
   division?: 'restaurant' | 'veg' | 'bakery';
 }
 
+export type SortOption = 'popular' | 'price_asc' | 'price_desc' | 'rating' | 'prep_time';
+
 interface MenuState {
   categories: ExtendedMenuCategory[];
   items: MenuItem[];
   selectedCategoryId: string | null;
   selectedItem: MenuItem | null;
+  selectedDivision: 'restaurant' | 'veg' | 'bakery';
   favorites: string[];
   searchQuery: string;
   vegOnly: boolean;
   spicyOnly: boolean;
   bestsellerOnly: boolean;
+  inStockOnly: boolean;
+  sortBy: SortOption;
   isLoading: boolean;
   isRefreshing: boolean;
   error: string | null;
 
-  fetchCategories: () => Promise<void>;
-  fetchItems: () => Promise<void>;
+  fetchCategories: (branchId?: string, division?: 'restaurant' | 'veg' | 'bakery') => Promise<void>;
+  fetchItems: (branchId?: string) => Promise<void>;
   fetchItemDetail: (id: string) => Promise<MenuItem | null>;
+  setDivision: (division: 'restaurant' | 'veg' | 'bakery') => void;
   toggleFavorite: (id: string) => void;
   setSearchQuery: (query: string) => void;
   setSelectedCategory: (categoryId: string | null) => void;
+  setSortBy: (sortBy: SortOption) => void;
   setVegOnly: (vegOnly: boolean) => void;
   setSpicyOnly: (spicyOnly: boolean) => void;
   setBestsellerOnly: (bestsellerOnly: boolean) => void;
-  refreshMenu: () => Promise<void>;
+  setInStockOnly: (inStockOnly: boolean) => void;
+  resetFilters: () => void;
+  refreshMenu: (branchId?: string) => Promise<void>;
 }
 
 export const mockCategories: ExtendedMenuCategory[] = [
@@ -1188,21 +1197,29 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   items: [],
   selectedCategoryId: null,
   selectedItem: null,
+  selectedDivision: 'restaurant',
   favorites: [],
   searchQuery: '',
   vegOnly: false,
   spicyOnly: false,
   bestsellerOnly: false,
+  inStockOnly: false,
+  sortBy: 'popular',
   isLoading: false,
   isRefreshing: false,
   error: null,
 
-  fetchCategories: async () => {
+  fetchCategories: async (branchId?: string, division?: 'restaurant' | 'veg' | 'bakery') => {
+    const div = division || get().selectedDivision;
     try {
-      const res = await apiFetch(`/customer/menu/categories`);
+      const params = new URLSearchParams();
+      if (div) params.append('division', div);
+      if (branchId) params.append('branchId', branchId);
+
+      const res = await apiFetch(`/customer/menu/categories?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
           set({ categories: json.data });
           return;
         }
@@ -1210,30 +1227,73 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     } catch {
       // Network unavailable
     }
+
+    // Fallback to mock categories
+    const fallback = mockCategories.filter((c) => !div || c.division === div);
+    set({ categories: fallback.length > 0 ? fallback : mockCategories });
   },
 
-  fetchItems: async () => {
+  fetchItems: async (branchId?: string) => {
     set({ isLoading: true, error: null });
-    const { selectedCategoryId, searchQuery, vegOnly, spicyOnly, bestsellerOnly } = get();
+    const {
+      selectedCategoryId,
+      selectedDivision,
+      searchQuery,
+      vegOnly,
+      spicyOnly,
+      bestsellerOnly,
+      inStockOnly,
+      sortBy,
+    } = get();
 
     try {
       const params = new URLSearchParams();
       if (selectedCategoryId) params.append('categoryId', selectedCategoryId);
+      if (selectedDivision) params.append('division', selectedDivision);
+      if (branchId) params.append('branchId', branchId);
       if (searchQuery) params.append('search', searchQuery);
       if (vegOnly) params.append('isVeg', 'true');
       if (spicyOnly) params.append('isSpicy', 'true');
       if (bestsellerOnly) params.append('isBestseller', 'true');
+      if (inStockOnly) params.append('availableOnly', 'true');
+      if (sortBy) params.append('sortBy', sortBy);
 
       const res = await apiFetch(`/customer/menu/items?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
-          set({ items: json.data, isLoading: false });
+          const parsed = json.data.map((item: any) => ({
+            ...item,
+            price: Number(item.price),
+            rating: Number(item.rating ?? 4.8),
+            isVeg: Boolean(item.isVegetarian),
+            isAvailable: Boolean(item.isAvailable),
+            addons: (item.addons || []).map((a: any) => ({
+              ...a,
+              price: Number(a.price),
+            })),
+          }));
+          set({ items: parsed, isLoading: false });
           return;
         }
       }
     } catch (err: any) {
-      set({ error: err?.message || 'Failed to fetch menu items', isLoading: false });
+      // Fallback
+      let fallback = mockItems;
+      if (selectedDivision === 'bakery') {
+        fallback = fallback.filter((i) => i.id.startsWith('bakery-') || i.categoryId.includes('bakery'));
+      } else if (selectedDivision === 'veg') {
+        fallback = fallback.filter((i) => i.isVegetarian && !i.categoryId.includes('bakery'));
+      } else {
+        fallback = fallback.filter((i) => i.id.startsWith('rest-'));
+      }
+      if (selectedCategoryId) {
+        fallback = fallback.filter((i) => i.categoryId === selectedCategoryId);
+      }
+      if (vegOnly) fallback = fallback.filter((i) => i.isVegetarian);
+      if (spicyOnly) fallback = fallback.filter((i) => i.isSpicy);
+      if (bestsellerOnly) fallback = fallback.filter((i) => i.isBestseller);
+      set({ items: fallback, isLoading: false, error: err?.message || null });
       return;
     }
     set({ items: [], isLoading: false });
@@ -1245,17 +1305,34 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
-          set({ selectedItem: json.data });
-          return json.data;
+          const formatted = {
+            ...json.data,
+            price: Number(json.data.price),
+            rating: Number(json.data.rating ?? 4.8),
+            isVeg: Boolean(json.data.isVegetarian),
+            isAvailable: Boolean(json.data.isAvailable),
+            addons: (json.data.addons || []).map((a: any) => ({
+              ...a,
+              price: Number(a.price),
+            })),
+          };
+          set({ selectedItem: formatted });
+          return formatted;
         }
       }
     } catch {
       // Local lookup fallback
     }
 
-    const item = get().items.find((i) => i.id === id) || null;
+    const item = get().items.find((i) => i.id === id) || mockItems.find((i) => i.id === id) || null;
     set({ selectedItem: item });
     return item;
+  },
+
+  setDivision: (division: 'restaurant' | 'veg' | 'bakery') => {
+    set({ selectedDivision: division, selectedCategoryId: null });
+    get().fetchCategories(undefined, division);
+    get().fetchItems();
   },
 
   toggleFavorite: (id: string) => {
@@ -1279,6 +1356,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     get().fetchItems();
   },
 
+  setSortBy: (sortBy: SortOption) => {
+    set({ sortBy });
+    get().fetchItems();
+  },
+
   setVegOnly: (vegOnly: boolean) => {
     set({ vegOnly });
     get().fetchItems();
@@ -1294,9 +1376,30 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     get().fetchItems();
   },
 
-  refreshMenu: async () => {
+  setInStockOnly: (inStockOnly: boolean) => {
+    set({ inStockOnly });
+    get().fetchItems();
+  },
+
+  resetFilters: () => {
+    set({
+      selectedCategoryId: null,
+      searchQuery: '',
+      vegOnly: false,
+      spicyOnly: false,
+      bestsellerOnly: false,
+      inStockOnly: false,
+      sortBy: 'popular',
+    });
+    get().fetchItems();
+  },
+
+  refreshMenu: async (branchId?: string) => {
     set({ isRefreshing: true });
-    await Promise.all([get().fetchCategories(), get().fetchItems()]);
+    await Promise.all([
+      get().fetchCategories(branchId, get().selectedDivision),
+      get().fetchItems(branchId),
+    ]);
     set({ isRefreshing: false });
   },
 }));

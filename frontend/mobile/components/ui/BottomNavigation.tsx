@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Home, ShoppingBag, Calendar, Tag, User } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeContext';
 import { useTranslation } from '../../i18n';
 import { Radius, Spacing, TouchTarget } from '@ashok-raj/ui';
@@ -34,6 +35,8 @@ export function BottomNavigation({
 }: BottomNavigationProps) {
   const { colors, isDark } = useTheme();
   const { isTamil } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const bottomOffset = Math.max(insets.bottom + 6, Platform.OS === 'ios' ? 24 : 14);
 
   const tabs: { key: TabKey; label: string; icon: typeof Home }[] = [
     { key: 'home',     label: isTamil ? 'முகப்பு' : 'Home',       icon: Home },
@@ -49,13 +52,22 @@ export function BottomNavigation({
   };
 
   return (
-    <View style={[styles.wrapper, style]}>
+    <View
+      pointerEvents="box-none"
+      style={[
+        styles.wrapper,
+        {
+          bottom: bottomOffset,
+        },
+        style,
+      ]}
+    >
       <View
         style={[
           styles.container,
           {
-            backgroundColor: colors.glass,
-            borderColor: colors.glassBorder,
+            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.96)' : 'rgba(255, 255, 255, 0.98)',
+            borderColor: isDark ? colors.glassBorder : '#E2E8F0',
           },
         ]}
       >
@@ -71,7 +83,7 @@ export function BottomNavigation({
               style={[
                 styles.tabItem,
                 isActive && {
-                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                  backgroundColor: 'rgba(37, 99, 235, 0.09)',
                 },
               ]}
               accessibilityRole="button"
@@ -103,7 +115,7 @@ export function BottomNavigation({
                   styles.label,
                   {
                     color: isActive ? colors.tabActive : colors.tabInactive,
-                    fontWeight: isActive ? '800' : '600',
+                    fontWeight: isActive ? '700' : '500',
                   },
                 ]}
                 numberOfLines={1}
@@ -120,27 +132,32 @@ export function BottomNavigation({
 
 const styles = StyleSheet.create({
   wrapper: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.sm,
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    alignItems: 'center',
+    zIndex: 1000,
     backgroundColor: 'transparent',
   },
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    borderRadius: Radius['2xl'],
+    width: '100%',
+    maxWidth: 480,
+    borderRadius: 30,
     borderWidth: 1.2,
     paddingVertical: 5,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     ...Platform.select({
       web: {
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.22)',
-        backdropFilter: 'blur(12px)',
+        boxShadow: '0 8px 26px rgba(15, 23, 42, 0.14)',
+        backdropFilter: 'blur(14px)',
       },
       default: {
-        shadowColor: '#000',
+        shadowColor: '#0F172A',
         shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.18,
+        shadowOpacity: 0.14,
         shadowRadius: 16,
         elevation: 8,
       },
@@ -148,10 +165,10 @@ const styles = StyleSheet.create({
   },
   tabItem: {
     flex: 1,
-    minHeight: TouchTarget.minHeight, // Accessible 44pt touch target
+    minHeight: 46,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: Radius.xl,
+    borderRadius: 20,
     paddingVertical: 4,
     paddingHorizontal: 2,
     gap: 2,
@@ -181,7 +198,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   label: {
-    fontSize: 10,
+    fontSize: 10.5,
     letterSpacing: 0.1,
   },
 });

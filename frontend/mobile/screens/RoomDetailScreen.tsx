@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   photo: { width: '100%', height: '100%', borderRadius: Radius.xl },
-  photoOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,23,42,0.18)', borderRadius: Radius.xl },
+  photoOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(15,23,42,0.18)', borderRadius: Radius.xl },
   photoCaption: { position: 'absolute', left: 14, bottom: 14, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: Radius.full, backgroundColor: 'rgba(15,23,42,0.58)' },
   photoText: { fontSize: FontSize.sm, fontWeight: '700', color: Palette.white },
   headerSection: {

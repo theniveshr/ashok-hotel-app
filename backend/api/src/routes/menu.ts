@@ -3,9 +3,36 @@ import type { FastifyPluginAsync } from 'fastify';
 export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
   const MENU_CACHE_TTL = 300; // 5 minutes cache
 
+  // Helper to determine division from category id or name
+  const getDivision = (id?: string | null, name?: string | null): 'restaurant' | 'veg' | 'bakery' => {
+    const sId = (id || '').toLowerCase();
+    const sName = (name || '').toLowerCase();
+    if (
+      sId.includes('bakery') ||
+      sName.includes('bakery') ||
+      sName.includes('cake') ||
+      sName.includes('sweet') ||
+      sName.includes('chaat') ||
+      sName.includes('pastr') ||
+      sName.includes('puff') ||
+      sName.includes('cookie')
+    ) {
+      return 'bakery';
+    }
+    if (sId.includes('veg') || sName.includes('pure veg') || sName.includes('vegetarian')) {
+      return 'veg';
+    }
+    return 'restaurant';
+  };
+
   // ── GET /categories — List all active categories ──────────────────────────
-  app.get('/categories', async (_req, reply) => {
-    const cacheKey = 'menu:categories';
+  app.get('/categories', async (req, reply) => {
+    const query = req.query as {
+      branchId?: string;
+      division?: 'restaurant' | 'veg' | 'bakery';
+    };
+
+    const cacheKey = `menu:categories:${query.branchId || 'all'}:${query.division || 'all'}`;
 
     try {
       if (app.redis) {
@@ -24,20 +51,46 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
 
     let categories: any[] = [];
     try {
-      categories = await app.prisma.menuCategory.findMany({
-        where: { isActive: true, deletedAt: null },
+      const where: any = { isActive: true, deletedAt: null };
+      if (query.branchId) {
+        where.OR = [{ branchId: query.branchId }, { branchId: null }];
+      }
+
+      const dbCategories = await app.prisma.menuCategory.findMany({
+        where,
         orderBy: { displayOrder: 'asc' },
         include: {
           _count: {
-            select: { menuItems: true },
+            select: { menuItems: { where: { deletedAt: null } } },
           },
         },
       });
+
+      categories = dbCategories.map((c: any) => ({
+        id: c.id,
+        branchId: c.branchId,
+        name: c.name,
+        nameTa: c.nameTa,
+        description: c.description,
+        descriptionTa: c.descriptionTa,
+        imageUrl: c.imageUrl,
+        displayOrder: c.displayOrder,
+        isActive: c.isActive,
+        division: getDivision(c.id, c.name),
+        itemCount: c._count?.menuItems ?? 0,
+        _count: c._count,
+      }));
+
+      if (query.division) {
+        categories = categories.filter((c: any) => c.division === query.division);
+      }
     } catch {
-      // Return rich seed categories if DB is offline
-      categories = [
+      // Robust multi-division fallback if DB is offline
+      const fallbackList = [
+        // Restaurant
         {
           id: 'cat-rest-breakfast',
+          division: 'restaurant',
           name: 'Breakfast & Tiffin',
           nameTa: 'காலை உணவு & டிபன்',
           description: 'Hot idlis, medu vada, ven pongal, poori & parotta',
@@ -45,10 +98,12 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/Idly.webp',
           displayOrder: 1,
           isActive: true,
+          itemCount: 7,
           _count: { menuItems: 7 },
         },
         {
           id: 'cat-rest-dosa',
+          division: 'restaurant',
           name: 'Dosa & Uthappam Varieties',
           nameTa: 'தோசை & உத்தப்பம் வகைகள்',
           description: 'Ghee roast, podi, onion, rava, special & uthappam',
@@ -56,10 +111,12 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/Ghee-Dosa.webp',
           displayOrder: 2,
           isActive: true,
+          itemCount: 6,
           _count: { menuItems: 6 },
         },
         {
           id: 'cat-rest-egg',
+          division: 'restaurant',
           name: 'Egg Specialties',
           nameTa: 'முட்டை வகைகள்',
           description: 'Egg kalaki, egg dosa, omelette, podimass & half-boil',
@@ -67,10 +124,12 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/Egg-kalaki.jpg',
           displayOrder: 3,
           isActive: true,
+          itemCount: 6,
           _count: { menuItems: 6 },
         },
         {
           id: 'cat-rest-lunch',
+          division: 'restaurant',
           name: 'Biryani & Chettinad Meals',
           nameTa: 'பிரியாணி & செட்டிநாடு சாப்பாடு',
           description: 'Seeraga samba mutton & chicken biryani, non-veg meals',
@@ -78,10 +137,12 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/hero-image.JPG',
           displayOrder: 4,
           isActive: true,
+          itemCount: 3,
           _count: { menuItems: 3 },
         },
         {
           id: 'cat-rest-dinner',
+          division: 'restaurant',
           name: 'Dinner & Parotta Specials',
           nameTa: 'இரவு உணவு & பன் புரோட்டா',
           description: 'Madurai bun parotta, kothu parotta, chicken fry & salna',
@@ -89,9 +150,160 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/Parotto.webp',
           displayOrder: 5,
           isActive: true,
+          itemCount: 2,
           _count: { menuItems: 2 },
         },
+        // Pure Veg
+        {
+          id: 'cat-veg-breakfast',
+          division: 'veg',
+          name: 'Pure Veg Tiffin',
+          nameTa: 'தூய சைவ டிபன்',
+          description: 'Soft idlis, ghee ven pongal, poori masala & crispy vada',
+          descriptionTa: 'மல்லிகைப் பூ இட்லி, நெய் பொங்கல், பூரி & வடை',
+          displayOrder: 6,
+          isActive: true,
+          itemCount: 2,
+          _count: { menuItems: 2 },
+        },
+        {
+          id: 'cat-veg-dosa',
+          division: 'veg',
+          name: 'Ghee Roast & Dosa Specials',
+          nameTa: 'நெய் ரோஸ்ட் & தோசை வகைகள்',
+          description: 'Crispy pure ghee roast, podi dosa, onion & rava dosa',
+          descriptionTa: 'சுத்தமான பசு நெய் ரோஸ்ட், பொடி தோசை, ரவா தோசை',
+          displayOrder: 7,
+          isActive: true,
+          itemCount: 1,
+          _count: { menuItems: 1 },
+        },
+        {
+          id: 'cat-veg-meals',
+          division: 'veg',
+          name: 'Banana Leaf Veg Meals',
+          nameTa: 'வாழை இலை சைவ சாப்பாடு',
+          description: 'Traditional full meals with sambar, rasam, kootu, poriyal & payasam',
+          descriptionTa: 'பாரம்பரிய வாழை இலை சாப்பாடு, சாம்பார், ரசம், கூட்டு, பாயாசம்',
+          displayOrder: 8,
+          isActive: true,
+          itemCount: 1,
+          _count: { menuItems: 1 },
+        },
+        {
+          id: 'cat-veg-biryani',
+          division: 'veg',
+          name: 'Veg & Paneer Biryani',
+          nameTa: 'சைவ & பனீர் பிரியாணி',
+          description: 'Aromatic vegetable dum biryani, paneer biryani & fried rice',
+          descriptionTa: 'காய்கறி தம் பிரியாணி, பனீர் பிரியாணி & ஃப்ரைட் ரைஸ்',
+          displayOrder: 9,
+          isActive: true,
+          itemCount: 1,
+          _count: { menuItems: 1 },
+        },
+        {
+          id: 'cat-veg-curries',
+          division: 'veg',
+          name: 'Paneer Curries & Naan',
+          nameTa: 'பனீர் கிரேவி & ரொட்டி',
+          description: 'Paneer butter masala, mushroom gravy, butter naan & chapati',
+          descriptionTa: 'பனீர் பட்டர் மசாலா, காளான் கிரேவி, பட்டர் நான் & சப்பாத்தி',
+          displayOrder: 10,
+          isActive: true,
+          itemCount: 1,
+          _count: { menuItems: 1 },
+        },
+        {
+          id: 'cat-veg-beverages',
+          division: 'veg',
+          name: 'Filter Coffee & Drinks',
+          nameTa: 'ஃபில்டர் காபி & பானங்கள்',
+          description: 'Kalaiyarkoil filter degree coffee, fresh tea & badam milk',
+          descriptionTa: 'காளையார்கோவில் ஃபில்டர் காபி, டீ & சூடான பாதாம் பால்',
+          displayOrder: 11,
+          isActive: true,
+          itemCount: 1,
+          _count: { menuItems: 1 },
+        },
+        // Bakery & Sweets
+        {
+          id: 'cat-bakery-chaat',
+          division: 'bakery',
+          name: 'Chaats & Street Food',
+          nameTa: 'சாட்ஸ் & தெருவோர உணவுகள்',
+          description: 'Pani puri, bhel puri, samosa chaat, sev puri & pav bhaji',
+          descriptionTa: 'பானி பூரி, பேல் பூரி, சமோசா சாட் & பாவ் பாஜி',
+          displayOrder: 12,
+          isActive: true,
+          itemCount: 2,
+          _count: { menuItems: 2 },
+        },
+        {
+          id: 'cat-bakery-sweets',
+          division: 'bakery',
+          name: 'Traditional Pure Ghee Sweets',
+          nameTa: 'பாரம்பரிய நெய் இனிப்புகள்',
+          description: 'Pure ghee wheat halwa, laddu, gulab jamun, mysore pak & kaju katli',
+          descriptionTa: 'சுத்த நெய் கோதுமை அல்வா, லட்டு, குலாப் ஜாமூன், மைசூர்பாக்',
+          displayOrder: 13,
+          isActive: true,
+          itemCount: 2,
+          _count: { menuItems: 2 },
+        },
+        {
+          id: 'cat-bakery-savouries',
+          division: 'bakery',
+          name: 'Savouries & Puffs',
+          nameTa: 'கார வகைகள் & பப்ஸ்',
+          description: 'Butter murukku, mixture, veg puff, egg puff, samosa & pakoda',
+          descriptionTa: 'வெண்ணெய் முறுக்கு, மிக்சர், வெஜ் பப்ஸ், முட்டை பப்ஸ் & சமோசா',
+          displayOrder: 14,
+          isActive: true,
+          itemCount: 2,
+          _count: { menuItems: 2 },
+        },
+        {
+          id: 'cat-bakery-cakes',
+          division: 'bakery',
+          name: 'Fresh Celebration Cakes',
+          nameTa: 'புதிய கேக் வகைகள்',
+          description: 'Black forest, red velvet, chocolate truffle & custom cakes',
+          descriptionTa: 'பிளாக் ஃபாரஸ்ட், ரெட் வெல்வெட் & தனிப்பயன் கேக்குகள்',
+          displayOrder: 15,
+          isActive: true,
+          itemCount: 2,
+          _count: { menuItems: 2 },
+        },
+        {
+          id: 'cat-bakery-cookies',
+          division: 'bakery',
+          name: 'Artisanal Cookies & Biscuits',
+          nameTa: 'குக்கீஸ் & பிஸ்கட் வகைகள்',
+          description: 'Fresh baked coconut cookies, butter biscuits & osmania biscuits',
+          descriptionTa: 'தேங்காய் பிஸ்கட், பட்டர் பிஸ்கட் & உஸ்மானியா பிஸ்கட்',
+          displayOrder: 16,
+          isActive: true,
+          itemCount: 1,
+          _count: { menuItems: 1 },
+        },
+        {
+          id: 'cat-bakery-juices',
+          division: 'bakery',
+          name: 'Fresh Fruits & Juices',
+          nameTa: 'பழங்கள் & பழச்சாறுகள்',
+          description: 'Fresh orange juice, pomegranate, Kalaiyarkoil jigarthanda & milkshakes',
+          descriptionTa: 'ஆரஞ்சு ஜூஸ், மாதுளை ஜூஸ், ஜிகர்தண்டா & மில்க்‌ஷேக்',
+          displayOrder: 17,
+          isActive: true,
+          itemCount: 1,
+          _count: { menuItems: 1 },
+        },
       ];
+
+      categories = query.division
+        ? fallbackList.filter((c: any) => c.division === query.division)
+        : fallbackList;
     }
 
     try {
@@ -113,11 +325,15 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
   app.get('/items', async (req, reply) => {
     const query = req.query as {
       categoryId?: string;
+      branchId?: string;
+      division?: 'restaurant' | 'veg' | 'bakery';
       search?: string;
       isVeg?: string;
       isSpicy?: string;
       isBestseller?: string;
       isFeatured?: string;
+      availableOnly?: string;
+      sortBy?: 'popular' | 'price_asc' | 'price_desc' | 'rating' | 'prep_time';
     };
 
     const cacheKey = `menu:items:${JSON.stringify(query)}`;
@@ -139,34 +355,95 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
 
     let items: any[] = [];
     try {
-      const where: any = { isAvailable: true, deletedAt: null };
+      const where: any = { deletedAt: null };
+
+      // Availability filter: if availableOnly=true, only show in-stock items
+      if (query.availableOnly === 'true') {
+        where.isAvailable = true;
+      }
+
       if (query.categoryId) where.categoryId = query.categoryId;
       if (query.isVeg === 'true') where.isVegetarian = true;
       if (query.isSpicy === 'true') where.isSpicy = true;
       if (query.isBestseller === 'true') where.isBestseller = true;
       if (query.isFeatured === 'true') where.isFeatured = true;
-      if (query.search) {
-        where.OR = [
-          { name: { contains: query.search, mode: 'insensitive' } },
-          { nameTa: { contains: query.search, mode: 'insensitive' } },
-          { description: { contains: query.search, mode: 'insensitive' } },
-          { tags: { has: query.search.toLowerCase() } },
-        ];
+
+      // Branch filter on category
+      if (query.branchId) {
+        where.category = {
+          OR: [{ branchId: query.branchId }, { branchId: null }],
+        };
       }
 
-      items = await app.prisma.menuItem.findMany({
+      // Division filter
+      if (query.division === 'bakery') {
+        where.categoryId = { startsWith: 'cat-bakery' };
+      } else if (query.division === 'veg') {
+        where.OR = [
+          { categoryId: { startsWith: 'cat-veg' } },
+          { isVegetarian: true, categoryId: { not: { startsWith: 'cat-bakery' } } },
+        ];
+      } else if (query.division === 'restaurant') {
+        where.categoryId = { startsWith: 'cat-rest' };
+      }
+
+      // Search keyword filter
+      if (query.search && query.search.trim()) {
+        const term = query.search.trim();
+        const searchConditions = [
+          { name: { contains: term, mode: 'insensitive' } },
+          { nameTa: { contains: term, mode: 'insensitive' } },
+          { description: { contains: term, mode: 'insensitive' } },
+          { tags: { has: term.toLowerCase() } },
+        ];
+        if (where.OR) {
+          where.AND = [{ OR: where.OR }, { OR: searchConditions }];
+          delete where.OR;
+        } else {
+          where.OR = searchConditions;
+        }
+      }
+
+      // Sorting
+      let orderBy: any = [{ isBestseller: 'desc' }, { displayOrder: 'asc' }];
+      if (query.sortBy === 'price_asc') {
+        orderBy = [{ price: 'asc' }, { displayOrder: 'asc' }];
+      } else if (query.sortBy === 'price_desc') {
+        orderBy = [{ price: 'desc' }, { displayOrder: 'asc' }];
+      } else if (query.sortBy === 'rating') {
+        orderBy = [{ rating: 'desc' }, { reviewCount: 'desc' }];
+      } else if (query.sortBy === 'prep_time') {
+        orderBy = [{ preparationTimeMinutes: 'asc' }, { displayOrder: 'asc' }];
+      }
+
+      const rawItems = await app.prisma.menuItem.findMany({
         where,
-        orderBy: [{ isBestseller: 'desc' }, { displayOrder: 'asc' }],
+        orderBy,
         include: {
           category: {
-            select: { id: true, name: true, nameTa: true },
+            select: { id: true, name: true, nameTa: true, branchId: true },
           },
           addons: {
             where: { isActive: true },
+            orderBy: { price: 'asc' },
           },
         },
       });
+
+      // Format items with numeric prices and booleans for frontend consistency
+      items = rawItems.map((item: any) => ({
+        ...item,
+        price: Number(item.price),
+        rating: Number(item.rating ?? 4.8),
+        isVeg: Boolean(item.isVegetarian),
+        isAvailable: Boolean(item.isAvailable),
+        addons: (item.addons || []).map((addon: any) => ({
+          ...addon,
+          price: Number(addon.price),
+        })),
+      }));
     } catch {
+      // Fallback items if DB is unavailable
       items = [
         {
           id: 'rest-idly',
@@ -179,6 +456,7 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           discountPercentage: 0,
           imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/Idly.webp',
           isVegetarian: true,
+          isVeg: true,
           isVegan: true,
           isGlutenFree: true,
           isSpicy: false,
@@ -187,6 +465,7 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           preparationTimeMinutes: 5,
           isAvailable: true,
           displayOrder: 1,
+          addons: [],
         },
         {
           id: 'rest-vada',
@@ -199,6 +478,7 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           discountPercentage: 0,
           imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/Vada-Sambar.webp',
           isVegetarian: true,
+          isVeg: true,
           isVegan: true,
           isGlutenFree: true,
           isSpicy: false,
@@ -207,6 +487,7 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           preparationTimeMinutes: 5,
           isAvailable: true,
           displayOrder: 2,
+          addons: [],
         },
         {
           id: 'rest-pongal',
@@ -219,6 +500,7 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           discountPercentage: 0,
           imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/ven-pongal.webp',
           isVegetarian: true,
+          isVeg: true,
           isVegan: false,
           isGlutenFree: true,
           isSpicy: false,
@@ -227,6 +509,7 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           preparationTimeMinutes: 10,
           isAvailable: true,
           displayOrder: 3,
+          addons: [],
         },
         {
           id: 'rest-ghee-dosa',
@@ -239,6 +522,7 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           discountPercentage: 10,
           imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/Ghee-Dosa.webp',
           isVegetarian: true,
+          isVeg: true,
           isVegan: false,
           isGlutenFree: true,
           isSpicy: false,
@@ -247,46 +531,10 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           preparationTimeMinutes: 12,
           isAvailable: true,
           displayOrder: 4,
-        },
-        {
-          id: 'rest-podi-dosa',
-          categoryId: 'cat-rest-dosa',
-          name: 'Podi Dosa',
-          nameTa: 'பொடி தோசை',
-          description: 'Crispy dosa dusted with spicy homemade Chettinad idli podi and gingelly sesame oil.',
-          descriptionTa: 'காரசாரமான இட்லி பொடி மற்றும் நல்லெண்ணெய் தூவிய பொடி தோசை.',
-          price: 80,
-          discountPercentage: 0,
-          imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/Podi-Dosa.webp',
-          isVegetarian: true,
-          isVegan: true,
-          isGlutenFree: true,
-          isSpicy: true,
-          isBestseller: true,
-          isFeatured: true,
-          preparationTimeMinutes: 12,
-          isAvailable: true,
-          displayOrder: 5,
-        },
-        {
-          id: 'rest-egg-kalaki',
-          categoryId: 'cat-rest-egg',
-          name: 'Chettinad Egg Kalaki',
-          nameTa: 'செட்டிநாடு முட்டை கலக்கி',
-          description: 'Famous Madurai street-style semi-cooked egg pocket prepared with rich chicken gravy.',
-          descriptionTa: 'சிக்கன் குழம்புடன் சமைத்த மென்மையான செட்டிநாடு முட்டை கலக்கி.',
-          price: 35,
-          discountPercentage: 0,
-          imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/Egg-kalaki.jpg',
-          isVegetarian: false,
-          isVegan: false,
-          isGlutenFree: true,
-          isSpicy: true,
-          isBestseller: true,
-          isFeatured: true,
-          preparationTimeMinutes: 5,
-          isAvailable: true,
-          displayOrder: 6,
+          addons: [
+            { id: 'addon-1', name: 'Extra Sambar Bowl', nameTa: 'கூடுதல் சாம்பார்', price: 20, isRequired: false, maxSelect: 2 },
+            { id: 'addon-2', name: 'Extra Gunpowder (Podi)', nameTa: 'இட்லி பொடி + நெய்', price: 25, isRequired: false, maxSelect: 1 },
+          ],
         },
         {
           id: 'rest-mutton-biryani',
@@ -299,6 +547,7 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           discountPercentage: 10,
           imageUrl: 'https://images.pexels.com/photos/12737656/pexels-photo-12737656.jpeg?auto=compress&cs=tinysrgb&w=800',
           isVegetarian: false,
+          isVeg: false,
           isVegan: false,
           isGlutenFree: true,
           isSpicy: true,
@@ -307,46 +556,80 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
           preparationTimeMinutes: 20,
           isAvailable: true,
           displayOrder: 7,
+          addons: [],
         },
         {
-          id: 'rest-chicken-biryani',
-          categoryId: 'cat-rest-lunch',
-          name: 'Chettinad Chicken Biryani',
-          nameTa: 'செட்டிநாடு சிக்கன் பிரியாணி',
-          description: 'Traditional wood-fired chicken biryani cooked with secret spices, served with egg, raitha & gravy.',
-          descriptionTa: 'காரசாரமான செட்டிநாடு சிக்கன் பிரியாணி முட்டை, தயிர் பச்சடி மற்றும் சால்னாவுடன்.',
-          price: 220,
+          id: 'bakery-black-forest',
+          categoryId: 'cat-bakery-cakes',
+          name: 'Black Forest Cake (500g)',
+          nameTa: 'பிளாக் ஃபாரஸ்ட் கேக் (500g)',
+          description: 'Soft chocolate sponge layered with fresh whipped cream, dark chocolate shavings & red cherries.',
+          descriptionTa: 'மெல்லிய சாக்லேட் ஸ்பாஞ்ச், புதிய கிரீம் மற்றும் செர்ரிகளுடன் கூடிய கேக்.',
+          price: 380,
           discountPercentage: 0,
-          imageUrl: 'https://images.pexels.com/photos/7394819/pexels-photo-7394819.jpeg?auto=compress&cs=tinysrgb&w=800',
-          isVegetarian: false,
+          imageUrl: 'https://www.ashokrajgroups.com/images/Bakery/Cakes/Black-Forest.webp',
+          isVegetarian: true,
+          isVeg: true,
           isVegan: false,
-          isGlutenFree: true,
-          isSpicy: true,
+          isGlutenFree: false,
+          isSpicy: false,
           isBestseller: true,
           isFeatured: true,
           preparationTimeMinutes: 15,
           isAvailable: true,
-          displayOrder: 8,
+          displayOrder: 15,
+          addons: [
+            { id: 'addon-c1', name: 'Size: 1 Kg (+500g extra)', nameTa: 'அளவு: 1 கிலோ', price: 350, isRequired: false, maxSelect: 1 },
+            { id: 'addon-c2', name: 'Birthday Candle Set', nameTa: 'மெழுகுவர்த்தி தொகுப்பு', price: 25, isRequired: false, maxSelect: 1 },
+          ],
         },
         {
-          id: 'rest-bun-parotta',
-          categoryId: 'cat-rest-dinner',
-          name: 'Madurai Bun Parotta (2 Pcs)',
-          nameTa: 'மதுரை பன் புரோட்டா (2 பிஸ்)',
-          description: 'Puffy, golden-brown crusty bun parottas served with rich non-veg chicken mutton salna.',
-          descriptionTa: 'மென்மையான மதுரை பன் புரோட்டா சூடான அசைவ சால்னாவுடன்.',
-          price: 90,
+          id: 'bakery-ghee-halwa',
+          categoryId: 'cat-bakery-sweets',
+          name: 'Pure Ghee Wheat Halwa (250g)',
+          nameTa: 'தூய நெய் கோதுமை அல்வா (250g)',
+          description: 'Glossy Tirunelveli-style wheat halwa cooked in pure cow ghee and loaded with fried cashews.',
+          descriptionTa: 'தூய பசு நெய்யில் தயாரிக்கப்பட்ட சுவையான திருநெல்வேலி கோதுமை அல்வா.',
+          price: 160,
           discountPercentage: 0,
-          imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/Parotto.webp',
-          isVegetarian: false,
+          imageUrl: 'https://images.pexels.com/photos/14463004/pexels-photo-14463004.jpeg?auto=compress&cs=tinysrgb&w=800',
+          isVegetarian: true,
+          isVeg: true,
           isVegan: false,
+          isGlutenFree: false,
+          isSpicy: false,
+          isBestseller: true,
+          isFeatured: true,
+          preparationTimeMinutes: 5,
+          isAvailable: true,
+          displayOrder: 16,
+          addons: [
+            { id: 'addon-h1', name: 'Pack: 500g (+250g extra)', nameTa: 'அளவு: 500 கிராம்', price: 160, isRequired: false, maxSelect: 1 },
+          ],
+        },
+        {
+          id: 'bakery-pani-puri',
+          categoryId: 'cat-bakery-chaat',
+          name: 'Special Pani Puri (6 Pcs)',
+          nameTa: 'ஸ்பெஷல் பானி பூரி (6 பிஸ்)',
+          description: 'Crispy hollow puris filled with spiced potato and sprouted moong, served with tangy mint water & sweet tamarind chutney.',
+          descriptionTa: 'மொறுமொறு பூரிகளில் உருளைக்கிழங்கு, கார புதினா தண்ணீர் மற்றும் இனிப்பு சட்னியுடன்.',
+          price: 45,
+          discountPercentage: 0,
+          imageUrl: 'https://images.pexels.com/photos/14883752/pexels-photo-14883752.jpeg?auto=compress&cs=tinysrgb&w=800',
+          isVegetarian: true,
+          isVeg: true,
+          isVegan: true,
           isGlutenFree: false,
           isSpicy: true,
           isBestseller: true,
           isFeatured: true,
-          preparationTimeMinutes: 12,
+          preparationTimeMinutes: 5,
           isAvailable: true,
-          displayOrder: 9,
+          displayOrder: 17,
+          addons: [
+            { id: 'addon-p1', name: 'Extra Crisp Puris (6 Pcs)', nameTa: 'கூடுதல் பூரி (6 பிஸ்)', price: 25, isRequired: false, maxSelect: 2 },
+          ],
         },
       ];
     }
@@ -388,51 +671,33 @@ export const customerMenuRoutes: FastifyPluginAsync = async (app) => {
 
     let item: any = null;
     try {
-      item = await app.prisma.menuItem.findUnique({
+      const raw = await app.prisma.menuItem.findUnique({
         where: { id },
         include: {
           category: true,
-          addons: { where: { isActive: true } },
+          addons: {
+            where: { isActive: true },
+            orderBy: { price: 'asc' },
+          },
           reviews: { orderBy: { createdAt: 'desc' }, take: 10 },
         },
       });
+
+      if (raw) {
+        item = {
+          ...raw,
+          price: Number(raw.price),
+          rating: Number(raw.rating ?? 4.8),
+          isVeg: Boolean(raw.isVegetarian),
+          isAvailable: Boolean(raw.isAvailable),
+          addons: (raw.addons || []).map((a: any) => ({
+            ...a,
+            price: Number(a.price),
+          })),
+        };
+      }
     } catch {
-      // Fallback detail mock
-      item = {
-        id,
-        categoryId: 'cat-1',
-        name: 'Special Ghee Roast Dosa',
-        nameTa: 'ஸ்பெஷல் நெய் ரோஸ்ட் தோசை',
-        description: 'Crispy golden dosa made with pure cow ghee, served with 3 coconut chutneys and hot sambar.',
-        descriptionTa: 'சுத்தமான பசு நெய்யில் சுடப்பட்ட மொறுமொறு தோசை, 3 வகை சட்னி மற்றும் சாம்பாருடன்.',
-        price: 110,
-        discountPercentage: 10,
-        imageUrl: 'https://www.ashokrajgroups.com/images/Restaurant/Breakfast/Ghee-Dosa.webp',
-        isVegetarian: true,
-        isVegan: false,
-        isGlutenFree: true,
-        isSpicy: false,
-        isBestseller: true,
-        isFeatured: true,
-        preparationTimeMinutes: 15,
-        isAvailable: true,
-        displayOrder: 1,
-        calories: 380,
-        rating: 4.9,
-        reviewCount: 128,
-        ingredients: ['Rice Flour', 'Urad Dal', 'Pure Cow Ghee', 'Fenugreek', 'Curry Leaves'],
-        allergens: ['Dairy'],
-        tags: ['dosa', 'ghee', 'breakfast', 'south indian'],
-        addons: [
-          { id: 'addon-1', name: 'Extra Sambar Bowl', nameTa: 'கூடுதல் சாம்பார்', price: 20, isRequired: false, maxSelect: 2 },
-          { id: 'addon-2', name: 'Extra Gunpowder (Podi)', nameTa: 'இட்லி பொடி + நெய்', price: 25, isRequired: false, maxSelect: 1 },
-          { id: 'addon-3', name: 'Extra Butter Chunk', nameTa: 'கூடுதல் வெண்ணெய் துண்டு', price: 15, isRequired: false, maxSelect: 1 },
-        ],
-        reviews: [
-          { id: 'rev-1', userName: 'Karthik Subramanian', rating: 5, comment: 'Crispiest ghee roast in Kalaiyarkoil! Sambar flavor is outstanding.', commentTa: 'காளையார்கோவிலில் மிகச்சிறந்த நெய் ரோஸ்ட்!', createdAt: new Date().toISOString() },
-          { id: 'rev-2', userName: 'Priya Rajendran', rating: 5, comment: 'Served boiling hot with authentic coconut chutney. Loved it!', commentTa: 'அற்புதமான தேங்காய் சட்னியுடன் பரிமாறப்பட்டது.', createdAt: new Date().toISOString() },
-        ],
-      };
+      // DB error handling
     }
 
     if (!item) {

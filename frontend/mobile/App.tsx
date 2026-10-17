@@ -1,9 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
+  BackHandler,
+  Linking,
   StatusBar,
   StyleSheet,
   View
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import { ThemeProvider, useTheme } from './theme/ThemeContext';
@@ -69,6 +72,7 @@ function MainApp() {
   const addItem = useCartStore((state) => state.addItem);
   const homeData = useHomeStore((state) => state.data);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const authState = useAuthStore((state) => state.authState);
   const restoreSession = useAuthStore((state) => state.restoreSession);
 
   React.useEffect(() => {
@@ -79,46 +83,176 @@ function MainApp() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   const [loginInitialPhone, setLoginInitialPhone] = useState<string>('');
   const [loginSuccessMessage, setLoginSuccessMessage] = useState<string>('');
-  const [selectedFoodId, setSelectedFoodId] = useState<string>('item-ghee-dosa');
-  const [selectedRoomId, setSelectedRoomId] = useState<string>('rt-double-ac');
+  const [selectedFoodId, setSelectedFoodId] = useState<string>('rest-ghee-dosa');
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('00000000-0000-0000-0001-000000000001');
   const [restaurantSegment, setRestaurantSegment] = useState<'restaurant' | 'bakery' | 'veg'>('restaurant');
   const [returnScreen, setReturnScreen] = useState<'tabs' | 'restaurant' | 'lodge' | 'register' | 'login'>('tabs');
+
+  // Restore persisted active tab
+  useEffect(() => {
+    AsyncStorage.getItem('@ashok_raj_active_tab')
+      .then((stored) => {
+        if (stored && ['home', 'orders', 'bookings', 'offers', 'profile'].includes(stored)) {
+          setActiveTab(stored as TabKey);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Route protection: Block unauthenticated access to protected screens
   React.useEffect(() => {
     const unauthenticatedScreens = ['splash', 'register', 'login', 'onboarding', 'settings', 'language'];
     if (!isAuthenticated && !unauthenticatedScreens.includes(activeScreen)) {
-      setActiveScreen('register');
+      if (authState === 'NEW_USER') {
+        setActiveScreen('register');
+      } else {
+        if (authState === 'SESSION_EXPIRED') {
+          setLoginSuccessMessage('Your 30-day session has expired. Please log in again.');
+        }
+        setActiveScreen('login');
+      }
     }
-  }, [isAuthenticated, activeScreen]);
+  }, [isAuthenticated, activeScreen, authState]);
 
   const cartCount = useMemo(() => cartItems.reduce((sum, item) => sum + item.quantity, 0), [cartItems]);
+
+  const goTabs = useCallback((tab: TabKey) => {
+    setActiveTab(tab);
+    setActiveScreen('tabs');
+    AsyncStorage.setItem('@ashok_raj_active_tab', tab).catch(() => {});
+  }, []);
+
+  const openRestaurant = useCallback((seg: 'restaurant' | 'bakery' | 'veg' = 'restaurant') => {
+    setRestaurantSegment(seg);
+    setActiveScreen('restaurant');
+  }, []);
+
+  const openFood = useCallback((id: string, from: 'tabs' | 'restaurant' = 'tabs') => {
+    setSelectedFoodId(id);
+    setReturnScreen(from);
+    setActiveScreen('food-detail');
+  }, []);
+
+  const openRoom = useCallback((id: string, from: 'tabs' | 'lodge' = 'tabs') => {
+    setSelectedRoomId(id);
+    setReturnScreen(from);
+    setActiveScreen('room-detail');
+  }, []);
+
+  // Hardware Back Button Handler (Android)
+  useEffect(() => {
+    const onBackPress = () => {
+      if (activeScreen === 'tabs') {
+        if (activeTab !== 'home') {
+          goTabs('home');
+          return true;
+        }
+        return false;
+      }
+
+      switch (activeScreen) {
+        case 'food-detail':
+        case 'cart':
+        case 'room-detail':
+          setActiveScreen(returnScreen);
+          return true;
+        case 'checkout':
+          setActiveScreen('cart');
+          return true;
+        case 'booking':
+          setActiveScreen('room-detail');
+          return true;
+        case 'restaurant':
+        case 'lodge':
+        case 'mini-hall':
+        case 'dine-in':
+        case 'table-reservation':
+        case 'notifications':
+        case 'waiter':
+          goTabs('home');
+          return true;
+        case 'settings':
+          goTabs('profile');
+          return true;
+        case 'language':
+          setActiveScreen('settings');
+          return true;
+        case 'register':
+          setActiveScreen('login');
+          return true;
+        default:
+          goTabs('home');
+          return true;
+      }
+    };
+
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [activeScreen, activeTab, returnScreen, goTabs]);
+
+  // Deep Link Handler
+  const handleDeepLink = useCallback(
+    (urlStr: string | null) => {
+      if (!urlStr) return;
+      try {
+        const url = new URL(urlStr);
+        const host = url.host || url.hostname;
+        const path = (url.pathname || '').replace(/^\/+/, '');
+        const searchParams = url.searchParams;
+
+        const route = host || path;
+        if (route.includes('restaurant')) {
+          const seg = (searchParams.get('segment') as any) || 'restaurant';
+          openRestaurant(seg);
+        } else if (route.includes('bakery')) {
+          openRestaurant('bakery');
+        } else if (route.includes('veg')) {
+          openRestaurant('veg');
+        } else if (route.includes('lodge') || route.includes('stay')) {
+          setActiveScreen('lodge');
+        } else if (route.includes('mini-hall') || route.includes('hall')) {
+          setActiveScreen('mini-hall');
+        } else if (route.includes('table-reservation') || route.includes('table')) {
+          setActiveScreen('table-reservation');
+        } else if (route.includes('dine-in') || route.includes('scan')) {
+          setActiveScreen('dine-in');
+        } else if (route.includes('orders')) {
+          goTabs('orders');
+        } else if (route.includes('bookings')) {
+          goTabs('bookings');
+        } else if (route.includes('offers')) {
+          goTabs('offers');
+        } else if (route.includes('cart')) {
+          setActiveScreen('cart');
+        } else if (route.includes('food')) {
+          const id = searchParams.get('id') || searchParams.get('foodId') || path.split('/')[1];
+          if (id) openFood(id);
+        } else if (route.includes('room')) {
+          const id = searchParams.get('id') || searchParams.get('roomId') || path.split('/')[1];
+          if (id) openRoom(id);
+        }
+      } catch {
+        if (urlStr.includes('restaurant')) openRestaurant('restaurant');
+        else if (urlStr.includes('bakery')) openRestaurant('bakery');
+        else if (urlStr.includes('veg')) openRestaurant('veg');
+        else if (urlStr.includes('lodge')) setActiveScreen('lodge');
+        else if (urlStr.includes('mini-hall')) setActiveScreen('mini-hall');
+        else if (urlStr.includes('table-reservation')) setActiveScreen('table-reservation');
+        else if (urlStr.includes('dine-in')) setActiveScreen('dine-in');
+      }
+    },
+    [openRestaurant, openFood, openRoom, goTabs]
+  );
+
+  useEffect(() => {
+    Linking.getInitialURL().then(handleDeepLink).catch(() => {});
+    const sub = Linking.addEventListener('url', (event) => handleDeepLink(event.url));
+    return () => sub.remove();
+  }, [handleDeepLink]);
 
   if (!fontsLoaded) {
     return <View style={styles.fontLoading} />;
   }
-
-  const goTabs = (tab: TabKey) => {
-    setActiveTab(tab);
-    setActiveScreen('tabs');
-  };
-
-  const openRestaurant = (seg: 'restaurant' | 'bakery' | 'veg' = 'restaurant') => {
-    setRestaurantSegment(seg);
-    setActiveScreen('restaurant');
-  };
-
-  const openFood = (id: string, from: 'tabs' | 'restaurant' = 'tabs') => {
-    setSelectedFoodId(id);
-    setReturnScreen(from);
-    setActiveScreen('food-detail');
-  };
-
-  const openRoom = (id: string, from: 'tabs' | 'lodge' = 'tabs') => {
-    setSelectedRoomId(id);
-    setReturnScreen(from);
-    setActiveScreen('room-detail');
-  };
 
   const addFoodToCart = (id: string) => {
     const item = homeData?.popularFoods?.find((food) => food.id === id);
@@ -162,7 +296,7 @@ function MainApp() {
             onNavigateToOffers={() => goTabs('offers')}
             onSignOut={() => {
               setLoginSuccessMessage('');
-              setActiveScreen('register');
+              setActiveScreen('login');
             }}
           />
         );
@@ -197,10 +331,16 @@ function MainApp() {
         return (
           <SplashScreen
             onFinish={() => {
-              if (useAuthStore.getState().isAuthenticated) {
+              const currentAuth = useAuthStore.getState();
+              if (currentAuth.isAuthenticated) {
                 goTabs('home');
-              } else {
+              } else if (currentAuth.authState === 'NEW_USER') {
                 setActiveScreen('register');
+              } else {
+                if (currentAuth.authState === 'SESSION_EXPIRED') {
+                  setLoginSuccessMessage('Your 30-day session has expired. Please log in again.');
+                }
+                setActiveScreen('login');
               }
             }}
           />
@@ -217,10 +357,6 @@ function MainApp() {
               setLoginSuccessMessage(message);
               setActiveScreen('login');
             }}
-            onOpenSettings={() => {
-              setReturnScreen('register');
-              setActiveScreen('settings');
-            }}
           />
         );
       case 'login':
@@ -235,10 +371,6 @@ function MainApp() {
             onLoginSuccess={() => {
               setLoginSuccessMessage('');
               goTabs('home');
-            }}
-            onOpenSettings={() => {
-              setReturnScreen('login');
-              setActiveScreen('settings');
             }}
           />
         );
@@ -343,7 +475,10 @@ function MainApp() {
   };
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      edges={activeScreen === 'tabs' ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}
+      style={[styles.root, { backgroundColor: colors.background }]}
+    >
       <StatusBar
         barStyle="dark-content"
         backgroundColor={colors.background}
@@ -368,6 +503,6 @@ export default function App() {
 
 const styles = StyleSheet.create({
   fontLoading: { flex: 1, backgroundColor: Palette.slate50 },
-  root: { flex: 1 },
+  root: { flex: 1, position: 'relative' },
   screenContainer: { flex: 1 },
 });

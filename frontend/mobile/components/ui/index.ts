@@ -29,3 +29,5 @@ export * from './AddressManagerModal';
 export * from './LoyaltyRewardsModal';
 export * from './AppInput';
 export * from './ConfirmDialog';
+export * from './BranchSelectionModal';
+export * from './LocationSelectorModal';

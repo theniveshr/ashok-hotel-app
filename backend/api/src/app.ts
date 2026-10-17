@@ -164,7 +164,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(healthRoutes, { prefix: '/health' });
   await app.register(healthRoutes, { prefix: '/api/v1/health' });
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
+  await app.register(customerHomeRoutes, { prefix: '/api' });
+  await app.register(customerHomeRoutes, { prefix: '/api/v1' });
   await app.register(customerHomeRoutes, { prefix: '/api/v1/customer' });
+  await app.register(customerProfileRoutes, { prefix: '/api' });
+  await app.register(customerProfileRoutes, { prefix: '/api/v1' });
   await app.register(customerProfileRoutes, { prefix: '/api/v1/customer' });
   await app.register(customerMenuRoutes, { prefix: '/api/v1/customer/menu' });
   await app.register(customerOrderRoutes, { prefix: '/api/v1/customer/orders' });

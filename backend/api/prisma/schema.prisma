@@ -18,6 +18,8 @@ model User {
   isActive          Boolean           @default(true)
   preferredLanguage Language          @default(en)
   fcmToken          String?
+  tourStatus        String            @default("not_started") @db.VarChar(20)
+  tourCompletedAt   DateTime?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   deletedAt         DateTime?
@@ -101,24 +103,35 @@ model UserRole {
 }
 
 model Address {
-  id         String     @id @default(uuid())
-  userId     String
-  label      String     @db.VarChar(50)
-  line1      String     @db.VarChar(200)
-  line2      String?    @db.VarChar(200)
-  city       String     @db.VarChar(100)
-  state      String     @db.VarChar(100)
-  pincode    String     @db.VarChar(10)
-  lat        Decimal?   @db.Decimal(10, 8)
-  lng        Decimal?   @db.Decimal(11, 8)
-  isDefault  Boolean    @default(false)
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  deletedAt  DateTime?
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  deliveries Delivery[]
+  id                   String     @id @default(uuid())
+  userId               String
+  label                String     @db.VarChar(50)
+  line1                String     @db.VarChar(200)
+  line2                String?    @db.VarChar(200)
+  recipientName        String?    @db.VarChar(100)
+  recipientPhone       String?    @db.VarChar(15)
+  houseNumber          String?    @db.VarChar(100)
+  buildingName         String?    @db.VarChar(100)
+  streetName           String?    @db.VarChar(150)
+  area                 String?    @db.VarChar(100)
+  landmark             String?    @db.VarChar(150)
+  city                 String     @db.VarChar(100)
+  state                String     @db.VarChar(100)
+  pincode              String     @db.VarChar(10)
+  country              String     @default("India") @db.VarChar(50)
+  formattedAddress     String?
+  deliveryInstructions String?
+  lat                  Decimal?   @db.Decimal(10, 8)
+  lng                  Decimal?   @db.Decimal(11, 8)
+  isDefault            Boolean    @default(false)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  deletedAt            DateTime?
+  user                 User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries           Delivery[]
 
   @@index([userId])
+  @@index([userId, isDefault])
   @@map("addresses")
 }
 

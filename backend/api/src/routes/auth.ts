@@ -182,6 +182,35 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return fallbackUsers.get(phone) || null;
   }
 
+  async function getUserByEmail(email: string) {
+    const normalized = email.trim().toLowerCase();
+    if (app.isDbConnected) {
+      try {
+        const dbUser = await app.prisma.user.findFirst({
+          where: {
+            email: {
+              equals: normalized,
+              mode: 'insensitive',
+            },
+          },
+          include: {
+            roles: {
+              include: { role: true },
+            },
+          },
+        });
+        if (dbUser) return dbUser;
+      } catch {
+        // Fallback
+      }
+    }
+
+    for (const u of fallbackUsers.values()) {
+      if (u.email && u.email.toLowerCase() === normalized) return u;
+    }
+    return null;
+  }
+
   async function getUserById(id: string) {
     if (app.isDbConnected) {
       try {
@@ -491,8 +520,10 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     );
 
     // Generate cryptographically secure refresh token (64 hex characters)
+    // 30-Day Session Management per requirement
+    const SESSION_MAX_AGE_DAYS = 30;
     const rawRefreshToken = crypto.randomBytes(32).toString('hex');
-    const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const refreshExpiresAt = new Date(Date.now() + SESSION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000); // 30 days
 
     await saveRefreshToken(
       userId,
@@ -507,6 +538,8 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       refreshToken: rawRefreshToken,
       expiresIn: 900, // 15 minutes in seconds
       tokenType: 'Bearer',
+      sessionExpiresAt: refreshExpiresAt.toISOString(),
+      sessionMaxAgeDays: SESSION_MAX_AGE_DAYS,
     };
   }
 
@@ -650,7 +683,36 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     const { phone, name, email, password, otp, preferredLanguage } = validation.data;
 
-    // Verify OTP if supplied
+    // Check duplicate mobile number before creating
+    const existingPhoneUser = await getUserByPhone(phone);
+    if (existingPhoneUser) {
+      return reply.status(409).send({
+        success: false,
+        error: {
+          code: 'USER_ALREADY_EXISTS',
+          message: 'An account with this mobile number already exists. Please login.',
+        },
+      });
+    }
+
+    // Check duplicate email if provided
+    let normalizedEmail: string | null = null;
+    if (email && email.trim()) {
+      normalizedEmail = email.trim().toLowerCase();
+      const existingEmailUser = await getUserByEmail(normalizedEmail);
+      if (existingEmailUser) {
+        return reply.status(409).send({
+          success: false,
+          error: {
+            code: 'EMAIL_ALREADY_EXISTS',
+            message: 'An account with this email address already exists. Please login.',
+          },
+        });
+      }
+    }
+
+    // Verify OTP if supplied or required
+    let isPhoneVerified = false;
     if (otp) {
       const record = await getLatestOtp(phone);
       const isValid = (record && record.otp === otp) || (isDev && otp === '123456');
@@ -667,9 +729,10 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       if (record) {
         await markOtpUsed(record.id, phone);
       }
+      isPhoneVerified = true;
     }
 
-    const userEmail = email?.trim() || `${phone.trim()}@ashokraj.com`;
+    const userEmail = normalizedEmail || `${phone.trim()}@ashokraj.com`;
     let supabaseUserId: string | null = null;
 
     // Create authentication account in Supabase Auth if Supabase client is available
@@ -712,9 +775,20 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       id: supabaseUserId || undefined,
       phone,
       name,
-      email: userEmail,
+      email: normalizedEmail,
       preferredLanguage,
     });
+
+    // If verified via OTP, update verified flag
+    if (isPhoneVerified && app.isDbConnected) {
+      try {
+        await app.prisma.user.update({
+          where: { id: user.id },
+          data: { isVerified: true },
+        });
+        user.isVerified = true;
+      } catch {}
+    }
 
     // If password provided, securely hash with Argon2id and store
     if (password) {
@@ -723,19 +797,20 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     }
 
     const roles: UserRole[] = ['CUSTOMER'];
-    const tokens = await issueTokens(user.id, roles, undefined, req);
 
+    // Per specification: Redirect user to login page after registration;
+    // do NOT automatically issue authenticated tokens.
     return reply.status(201).send({
       success: true,
       data: {
-        message: 'Account registered successfully',
+        message: 'Registration successful! Please log in to continue.',
+        phone: user.phone,
         user: sanitizeUser(user, roles),
-        tokens,
       },
     });
   });
 
-  // ─── 4. Staff & Admin Password Login ────────────────────────────────────────
+  // ─── 4. Customer & Staff Password Login (Mobile or Email) ───────────────────
   app.post('/password-login', async (req, reply) => {
     const validation = PasswordLoginSchema.safeParse(req.body);
     if (!validation.success) {
@@ -749,23 +824,36 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       });
     }
 
-    const { phone, password } = validation.data;
+    const { identifier, phone, email, password } = validation.data as any;
+    const rawTarget = (identifier || phone || email || '').trim();
 
-    // Find user
-    let user = await getUserByPhone(phone);
+    // Resolve user by email or phone
+    let user = null;
+    const isEmailInput = rawTarget.includes('@');
+    if (isEmailInput) {
+      user = await getUserByEmail(rawTarget);
+    } else {
+      let cleanPhone = rawTarget.replace(/[\s\-\(\)]/g, '');
+      if (cleanPhone.startsWith('+91')) cleanPhone = cleanPhone.slice(3);
+      else if (cleanPhone.startsWith('91') && cleanPhone.length > 10) cleanPhone = cleanPhone.slice(2);
+      else if (cleanPhone.startsWith('0') && cleanPhone.length > 10) cleanPhone = cleanPhone.slice(1);
+      cleanPhone = cleanPhone.replace(/[^0-9]/g, '');
+      user = await getUserByPhone(cleanPhone);
+    }
 
     // If user not in local store, attempt lookup in Supabase Auth
     if (!user && app.supabase) {
-      const userEmail = `${phone}@ashokraj.com`;
+      const lookupEmail = isEmailInput ? rawTarget.toLowerCase() : `${rawTarget}@ashokraj.com`;
       try {
         const { data: sbLogin } = await app.supabase.auth.signInWithPassword({
-          email: userEmail,
+          email: lookupEmail,
           password,
         });
         if (sbLogin?.user) {
+          const resolvedPhone = sbLogin.user.phone?.replace(/^\+91/, '') || rawTarget;
           user = await createOrUpdateCustomer({
             id: sbLogin.user.id,
-            phone,
+            phone: resolvedPhone,
             name: sbLogin.user.user_metadata?.['name'] || 'Ashok Guest',
             email: sbLogin.user.email,
           });
@@ -780,7 +868,7 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         success: false,
         error: {
           code: 'INVALID_CREDENTIALS',
-          message: 'Invalid phone number or password.',
+          message: 'Invalid mobile number, email, or password.',
         },
       });
     }
@@ -803,7 +891,7 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     // Fallback: Verify via Supabase Auth if hash not stored
     if (!passwordMatch && app.supabase) {
-      const userEmail = user.email || `${phone}@ashokraj.com`;
+      const userEmail = user.email || `${user.phone}@ashokraj.com`;
       try {
         const { data: sbLogin } = await app.supabase.auth.signInWithPassword({
           email: userEmail,
@@ -822,7 +910,7 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         success: false,
         error: {
           code: 'INVALID_CREDENTIALS',
-          message: 'Invalid phone number or password.',
+          message: 'Invalid mobile number, email, or password.',
         },
       });
     }
@@ -926,8 +1014,8 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       return reply.status(401).send({
         success: false,
         error: {
-          code: 'UNAUTHORIZED',
-          message: 'Session has expired or is invalid. Please log in again.',
+          code: 'SESSION_EXPIRED',
+          message: 'Your 30-day session has expired. Please log in again.',
         },
       });
     }

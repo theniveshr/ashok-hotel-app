@@ -184,7 +184,7 @@ export function MiniHallScreen({ onBack }: MiniHallScreenProps) {
             {!fallbackFailed && (
               <Image
                 source={{ uri: heroImageUri }}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
                 resizeMode="cover"
                 onError={() => {
                   if (!imgError) {

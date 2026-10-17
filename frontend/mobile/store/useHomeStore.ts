@@ -334,26 +334,27 @@ export const useHomeStore = create<HomeState>((set, get) => ({
   error: null,
   searchQuery: '',
 
-  fetchHomeFeed: async () => {
+  fetchHomeFeed: async (branchId?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const res = await apiFetch('/customer/home');
+      const url = branchId ? `/customer/home?branchId=${encodeURIComponent(branchId)}` : '/customer/home';
+      const res = await apiFetch(url);
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
-          set({ data: json.data, isLoading: false });
+          set({ data: json.data, isLoading: false, error: null });
           return;
         }
       }
-    } catch {
-      // Retain existing state if backend is offline
+      set({ error: 'Could not refresh home feed', isLoading: false });
+    } catch (e: any) {
+      set({ error: e?.message || 'Network unavailable. Showing offline cached view.', isLoading: false });
     }
-    set({ isLoading: false });
   },
 
-  refreshHomeFeed: async () => {
+  refreshHomeFeed: async (branchId?: string) => {
     set({ isRefreshing: true });
-    await get().fetchHomeFeed();
+    await get().fetchHomeFeed(branchId);
     set({ isRefreshing: false });
   },
 

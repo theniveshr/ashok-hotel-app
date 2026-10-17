@@ -44,6 +44,14 @@ export interface DeliveryAddress {
   city: string;
   pincode: string;
   isDefault?: boolean;
+  recipientName?: string;
+  recipientPhone?: string;
+  houseNumber?: string;
+  buildingName?: string;
+  landmark?: string;
+  deliveryInstructions?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 interface CartState {

@@ -11,9 +11,10 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import {
+  AlertCircle,
   ArrowRight,
   Award,
   BedDouble,
@@ -21,26 +22,37 @@ import {
   Building2,
   CakeSlice,
   Calendar,
+  ChevronDown,
   ChevronRight,
   ExternalLink,
   Hotel,
-  KeyRound,
   Leaf,
+  MapPin,
   PartyPopper,
   ShoppingBag,
+  Sparkles,
   Sun,
-  User,
-  Utensils,
   Users,
+  Utensils,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from '../i18n';
 import { FoodCard } from '../components/ui/FoodCard';
 import { RoomCard } from '../components/ui/RoomCard';
 import { GlassCard } from '../components/ui/GlassCard';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorState } from '../components/ui/ErrorState';
 import { AboutAshokRajModal } from '../components/ui/AboutAshokRajModal';
+import { BranchSelectionModal } from '../components/ui/BranchSelectionModal';
+import { LocationSelectorModal } from '../components/ui/LocationSelectorModal';
+import { HomePageTourModal } from '../components/ui/HomePageTourModal';
 import { FloatingActionButton } from '../components/ui/FloatingActionButton';
 import { useHomeStore } from '../store/useHomeStore';
+import { useBranchStore } from '../store/useBranchStore';
+import { useLocationStore } from '../store/useLocationStore';
+import { useAddressStore } from '../store/useAddressStore';
+import { useTourStore } from '../store/useTourStore';
 import { useCartStore } from '../store/useCartStore';
 import { useOrderStore } from '../store/useOrderStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -79,14 +91,14 @@ export interface HeroSlide {
 const HERO_SLIDES: HeroSlide[] = [
   {
     id: 'offer',
-    badge: '★ Limited Time Offer',
-    badgeTa: '★ குறிப்பிட்ட கால சலுகை',
-    title: 'Get 15% OFF',
-    titleTa: '15% தள்ளுபடி பெறுக',
-    subtitle: 'on all Restaurant orders',
-    subtitleTa: 'அனைத்து உணவக ஆர்டர்களுக்கும்',
-    desc: 'Delicious food, happy moments — made for you!',
-    descTa: 'சுவையான உணவு, சிறந்த சேமிப்பு — உங்களுக்காக!',
+    badge: '★ Special Offer',
+    badgeTa: '★ சிறப்பு சலுகை',
+    title: 'Authentic Feast',
+    titleTa: 'அசல் விருந்து',
+    subtitle: 'Dining & Chettinad Flavors',
+    subtitleTa: 'செட்டிநாடு சுவை மற்றும் பார்சல்',
+    desc: 'Delicious food, fresh ingredients, crafted with care daily.',
+    descTa: 'சுவையான உணவு, தரமான பொருட்கள், பாரம்பரிய சுவை!',
     cta: 'Order Now',
     ctaTa: 'ஆர்டர் செய்க',
     image: 'https://images.pexels.com/photos/12737656/pexels-photo-12737656.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -199,6 +211,16 @@ const HERO_SLIDES: HeroSlide[] = [
   },
 ];
 
+type CategoryFilterKey = 'ALL' | 'RESTAURANT' | 'BAKERY' | 'VEG' | 'LODGE' | 'MINI_HALL';
+
+const CATEGORY_FILTERS: { key: CategoryFilterKey; label: string; labelTa: string }[] = [
+  { key: 'ALL', label: 'All Services', labelTa: 'அனைத்தும்' },
+  { key: 'RESTAURANT', label: 'Restaurant', labelTa: 'உணவகம்' },
+  { key: 'BAKERY', label: 'Bakery & Sweets', labelTa: 'பேக்கரி' },
+  { key: 'VEG', label: 'Pure Veg', labelTa: 'தூய சைவம்' },
+  { key: 'LODGE', label: 'Lodge Rooms', labelTa: 'லாட்ஜ் அறைகள்' },
+  { key: 'MINI_HALL', label: 'Mini Hall', labelTa: 'மினி ஹால்' },
+];
 
 export interface HomeScreenProps {
   onNavigateToRestaurant: (initialSegment?: 'restaurant' | 'bakery' | 'veg') => void;
@@ -232,20 +254,34 @@ export function HomeScreen({
   onNavigateToCart,
 }: HomeScreenProps) {
   const { isTamil } = useTranslation();
-  const { data, refreshHomeFeed } = useHomeStore();
+  const { data, isLoading, error, refreshHomeFeed } = useHomeStore();
+  const { selectedBranch, initBranch } = useBranchStore();
   const user = useAuthStore((state) => state.user);
   const cartItems = useCartStore((state) => state.items);
   const orders = useOrderStore((state) => state.orders);
   const activeOrder = useOrderStore((state) => state.activeOrder);
   const fetchOrders = useOrderStore((state) => state.fetchOrders);
+
+  const { selectedLocation, coverage, initLocation, getDisplayAddress } = useLocationStore();
   const [refreshing, setRefreshing] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<CategoryFilterKey>('ALL');
   const [activityFilter, setActivityFilter] = useState<'ALL' | 'ORDERS' | 'LODGE' | 'MINI_HALL'>('ALL');
   const [aboutModalVisible, setAboutModalVisible] = useState(false);
+  const [branchModalVisible, setBranchModalVisible] = useState(false);
+  const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const [isLocationMandatory, setIsLocationMandatory] = useState(false);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+
+  const { isTourActive, startTour, fetchTourStatus } = useTourStore();
+  const { addresses, fetchAddresses } = useAddressStore();
+
   const carouselRef = useRef<ScrollView>(null);
   const carouselIndexRef = useRef(0);
   const isUserTouchingRef = useRef(false);
+  const prevUserIdRef = useRef<string | null>(null);
+  const tourCheckedRef = useRef(false);
 
   const totalCartCount = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
@@ -253,9 +289,46 @@ export function HomeScreen({
   );
 
   useEffect(() => {
-    void refreshHomeFeed();
+    void initBranch();
+    void initLocation();
+    void refreshHomeFeed(selectedBranch?.id);
     void fetchOrders();
-  }, [refreshHomeFeed, fetchOrders]);
+  }, [initBranch, initLocation, refreshHomeFeed, fetchOrders, selectedBranch?.id]);
+
+  // Load user addresses and handle first-time onboarding tour per authenticated user
+  useEffect(() => {
+    if (user?.id !== prevUserIdRef.current) {
+      prevUserIdRef.current = user?.id || null;
+      tourCheckedRef.current = false;
+    }
+
+    if (user?.id && !tourCheckedRef.current) {
+      tourCheckedRef.current = true;
+      // Fetch saved addresses from Supabase Cloud DB
+      void fetchAddresses();
+      // Fetch user's tour status from Supabase Cloud DB
+      void fetchTourStatus().then((status) => {
+        if (status === 'not_started') {
+          startTour();
+        }
+      });
+    }
+  }, [user?.id, fetchAddresses, fetchTourStatus, startTour]);
+
+  const handleTourFinishOrSkip = () => {
+    const hasValidAddress = Boolean(
+      (selectedLocation?.address &&
+        selectedLocation.address !== 'Kalaiyarkoil, Tamil Nadu' &&
+        selectedLocation.address.length > 5) ||
+      (addresses && addresses.length > 0)
+    );
+
+    // If no valid address selected, mandatory location selection opens automatically
+    if (!hasValidAddress) {
+      setIsLocationMandatory(true);
+      setLocationModalVisible(true);
+    }
+  };
 
   useEffect(() => {
     carouselIndexRef.current = carouselIndex;
@@ -284,13 +357,68 @@ export function HomeScreen({
     return isTamil ? 'மாலை வணக்கம்' : 'Good evening';
   };
 
-  const popularFoods = useMemo(() => {
+  const rawPopularFoods = useMemo(() => {
     const list = data?.popularFoods || [];
     const recommended = data?.recommendedFoods || [];
     return [...list, ...recommended];
   }, [data?.popularFoods, data?.recommendedFoods]);
 
-  const featuredRooms = useMemo(() => data?.featuredRooms ?? [], [data?.featuredRooms]);
+  const rawFeaturedRooms = useMemo(() => data?.featuredRooms ?? [], [data?.featuredRooms]);
+
+  // Filter foods by Category Filter & Search Query
+  const filteredFoods = useMemo(() => {
+    let list = rawPopularFoods;
+
+    if (selectedCategory === 'RESTAURANT') {
+      list = list.filter((f) => !f.categoryId?.includes('bakery') && !f.id?.startsWith('bakery-'));
+    } else if (selectedCategory === 'BAKERY') {
+      list = list.filter((f) => f.categoryId?.includes('bakery') || f.id?.startsWith('bakery-'));
+    } else if (selectedCategory === 'VEG') {
+      list = list.filter((f) => f.isVeg || f.isVegetarian);
+    } else if (selectedCategory === 'LODGE' || selectedCategory === 'MINI_HALL') {
+      list = [];
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(
+        (f) =>
+          f.name?.toLowerCase().includes(q) ||
+          f.nameTa?.toLowerCase().includes(q) ||
+          f.description?.toLowerCase().includes(q) ||
+          f.descriptionTa?.toLowerCase().includes(q) ||
+          f.tags?.some((t) => t.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [rawPopularFoods, selectedCategory, searchQuery]);
+
+  // Filter rooms by Category Filter & Search Query
+  const filteredRooms = useMemo(() => {
+    if (
+      selectedCategory === 'RESTAURANT' ||
+      selectedCategory === 'BAKERY' ||
+      selectedCategory === 'VEG' ||
+      selectedCategory === 'MINI_HALL'
+    ) {
+      return [];
+    }
+
+    let list = rawFeaturedRooms;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(
+        (r) =>
+          (r.name || (r as any).title)?.toLowerCase().includes(q) ||
+          (r.nameTa || (r as any).titleTa)?.toLowerCase().includes(q) ||
+          r.description?.toLowerCase().includes(q) ||
+          r.amenities?.some((a: string) => a.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [rawFeaturedRooms, selectedCategory, searchQuery]);
 
   const cartQuantityFor = (id: string) =>
     cartItems.filter((item) => item.id === id).reduce((sum, item) => sum + item.quantity, 0);
@@ -298,7 +426,8 @@ export function HomeScreen({
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await refreshHomeFeed();
+      await refreshHomeFeed(selectedBranch?.id);
+      await fetchOrders();
     } finally {
       setRefreshing(false);
     }
@@ -346,14 +475,11 @@ export function HomeScreen({
   };
 
   const latestOrder = useMemo(() => {
-    // 1. Look for active / in-progress order
     const active = orders.find(
       (o) => o.status !== 'DELIVERED' && o.status !== 'CANCELLED'
     ) || activeOrder;
     if (active) return active;
-    // 2. Look for most recent past order
     if (orders.length > 0) return orders[0];
-    // 3. Fallback to data?.activeOrder if any
     return data?.activeOrder || null;
   }, [orders, activeOrder, data?.activeOrder]);
 
@@ -430,21 +556,110 @@ export function HomeScreen({
   const statusInfo = getStatusInfo(latestOrder?.status);
 
   const getEstimatedTimeStr = () => {
-    if (!latestOrder) return isTamil ? '12 நிமிடம் கணிக்கப்பட்டது' : '12 min estimated';
+    if (!latestOrder) return isTamil ? '15 நிமிடம் கணிக்கப்பட்டது' : '15 min estimated';
     if (latestOrder.status === 'DELIVERED') return isTamil ? 'வெற்றிகரமாக வழங்கப்பட்டது' : 'Delivered successfully';
     if (latestOrder.status === 'CANCELLED') return isTamil ? 'ஆர்டர் ரத்து செய்யப்பட்டது' : 'Order cancelled';
-    const mins = (latestOrder as any).estimatedDeliveryMinutes || (latestOrder as any).estimatedMinutes || 15;
+    const mins = (latestOrder as any).estimatedDeliveryMinutes || (latestOrder as any).estimatedMinutes || 20;
     return isTamil ? `${mins} நிமிடம் கணிக்கப்பட்டது` : `${mins} min estimated`;
   };
 
   const services = [
-    { title: isTamil ? 'உணவகம்' : 'Restaurant', desc: isTamil ? 'Dine-in & Parcel' : 'Dine-in & Parcel', icon: Utensils, tint: '#EFF6FF', iconColor: '#2563EB', onPress: () => onNavigateToRestaurant('restaurant') },
-    { title: isTamil ? 'மேசை முன்பதிவு' : 'Book a Table', desc: isTamil ? 'Instant Reservation' : 'Instant Reservation', icon: Calendar, tint: '#FFFBEB', iconColor: '#D97706', onPress: () => onNavigateToTableReservation?.() },
-    { title: isTamil ? 'பேக்கரி' : 'Bakery', desc: isTamil ? 'Fresh Cakes & Snacks' : 'Fresh Cakes & Snacks', icon: CakeSlice, tint: '#FFF1F6', iconColor: '#DB2777', onPress: () => onNavigateToRestaurant('bakery') },
-    { title: isTamil ? 'தூய சைவம்' : 'Pure Veg', desc: isTamil ? 'Vegetarian Meals' : 'Vegetarian Meals', icon: Leaf, tint: '#ECFDF3', iconColor: '#16A34A', onPress: () => onNavigateToRestaurant('veg') },
-    { title: isTamil ? 'லாட்ஜ்' : 'Lodge', desc: isTamil ? 'Comfortable AC Rooms' : 'Comfortable AC Rooms', icon: BedDouble, tint: '#F4F0FF', iconColor: '#7C3AED', onPress: onNavigateToLodge },
-    { title: isTamil ? 'மினி ஹால்' : 'Mini Hall', desc: isTamil ? '100+ Seater AC Hall' : '100+ Seater AC Hall', icon: Users, tint: '#FFF7ED', iconColor: '#EA580C', onPress: onNavigateToMiniHall },
+    {
+      title: isTamil ? 'உணவகம்' : 'Restaurant',
+      desc: isTamil ? 'Dine-in & Parcel' : 'Dine-in & Parcel',
+      icon: Utensils,
+      tint: '#EFF6FF',
+      iconColor: '#2563EB',
+      onPress: () => onNavigateToRestaurant('restaurant'),
+    },
+    {
+      title: isTamil ? 'மேசை முன்பதிவு' : 'Book a Table',
+      desc: isTamil ? 'Instant Reservation' : 'Instant Reservation',
+      icon: Calendar,
+      tint: '#FFFBEB',
+      iconColor: '#D97706',
+      onPress: () => onNavigateToTableReservation?.(),
+    },
+    {
+      title: isTamil ? 'பேக்கரி' : 'Bakery & Sweets',
+      desc: isTamil ? 'Fresh Cakes & Snacks' : 'Fresh Cakes & Snacks',
+      icon: CakeSlice,
+      tint: '#FFF1F6',
+      iconColor: '#DB2777',
+      onPress: () => onNavigateToRestaurant('bakery'),
+    },
+    {
+      title: isTamil ? 'தூய சைவம்' : 'Pure Veg',
+      desc: isTamil ? 'Vegetarian Meals' : 'Vegetarian Meals',
+      icon: Leaf,
+      tint: '#ECFDF3',
+      iconColor: '#16A34A',
+      onPress: () => onNavigateToRestaurant('veg'),
+    },
+    {
+      title: isTamil ? 'லாட்ஜ்' : 'Lodge Rooms',
+      desc: isTamil ? 'Comfortable AC Rooms' : 'Comfortable AC Rooms',
+      icon: BedDouble,
+      tint: '#F4F0FF',
+      iconColor: '#7C3AED',
+      onPress: onNavigateToLodge,
+    },
+    {
+      title: isTamil ? 'மினி ஹால்' : 'Mini Hall',
+      desc: isTamil ? '100+ Seater AC Hall' : '100+ Seater AC Hall',
+      icon: Users,
+      tint: '#FFF7ED',
+      iconColor: '#EA580C',
+      onPress: onNavigateToMiniHall,
+    },
   ];
+
+  const currentBranchName = isTamil
+    ? selectedBranch?.nameTa || data?.greeting?.branchNameTa || 'காளையார்கோவில் முதன்மை கிளை'
+    : selectedBranch?.name || data?.greeting?.branchName || 'Kalaiyarkoil Main Branch';
+
+  // Loading Skeleton State
+  if (isLoading && !data) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Skeleton width={44} height={44} borderRadius={15} />
+          <View style={{ alignItems: 'center', gap: 6 }}>
+            <Skeleton width={180} height={18} />
+            <Skeleton width={120} height={12} />
+          </View>
+          <Skeleton width={44} height={44} borderRadius={22} />
+        </View>
+        <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+          <Skeleton width="100%" height={44} borderRadius={22} />
+        </View>
+        <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+          <Skeleton width="100%" height={210} borderRadius={24} />
+        </View>
+        <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
+          <Skeleton width={140} height={20} />
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+            <Skeleton width={110} height={130} borderRadius={20} />
+            <Skeleton width={110} height={130} borderRadius={20} />
+            <Skeleton width={110} height={130} borderRadius={20} />
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // Error State when offline / network down without cached data
+  if (error && !data) {
+    return (
+      <View style={styles.container}>
+        <ErrorState
+          title={isTamil ? 'இணைப்பு தோல்வியடைந்தது' : 'Unable to load Ashok Raj services'}
+          message={error}
+          onRetry={handleRefresh}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -453,24 +668,68 @@ export function HomeScreen({
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#2563EB" />}
       >
-        {/* Header */}
+        {/* Offline Warning Banner if cached data with error */}
+        {error && (
+          <View style={styles.offlineBanner}>
+            <AlertCircle size={15} color="#B45309" />
+            <Text style={styles.offlineText} numberOfLines={1}>
+              {isTamil
+                ? 'ஆஃப்லைன் பயன்முறை — சேமிக்கப்பட்ட தகவல்கள் காட்டப்படுகின்றன'
+                : 'Offline mode — Showing cached menu & services'}
+            </Text>
+            <TouchableOpacity onPress={handleRefresh} style={styles.offlineRetryBtn} activeOpacity={0.7}>
+              <Text style={styles.offlineRetryText}>{isTamil ? 'மீண்டும்' : 'Retry'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Header: Deliver To Location Selector */}
         <View style={styles.header}>
-          <View style={styles.headerSide}>
-            <View style={styles.logoBadge}>
-              <Building2 size={22} color="#2563EB" strokeWidth={2} />
-            </View>
-          </View>
+          {/* Top-Left: Location Pin Icon / Button */}
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.selectionAsync();
+              setLocationModalVisible(true);
+            }}
+            style={styles.locationButton}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={isTamil ? 'இருப்பிடத்தைத் தேர்ந்தெடுக்கவும்' : 'Choose delivery location'}
+          >
+            <MapPin size={21} color="#2563EB" strokeWidth={2.4} />
+          </TouchableOpacity>
 
-          <View style={styles.brandCenter}>
-            <Text style={styles.brandTitle}>AshokRaj Groups</Text>
-            <View style={styles.greetingRow}>
-              <Text style={styles.greetingText}>
-                {getGreeting()}, {user?.name ? user.name.split(' ')[0] : (isTamil ? 'விருந்தினர்' : 'Guest')}
+          {/* Top-Center: Dynamic "Deliver to" + Address */}
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.selectionAsync();
+              setLocationModalVisible(true);
+            }}
+            style={styles.deliverToCenter}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`${isTamil ? 'டெலிவரி முகவரி' : 'Deliver to'} ${getDisplayAddress()}`}
+          >
+            <View style={styles.deliverToLabelRow}>
+              <Text style={styles.deliverToHeading}>
+                {isTamil ? 'டெலிவரி இடம்' : 'DELIVER TO'}
               </Text>
-              <Sun size={13} color="#2563EB" />
+              <View
+                style={[
+                  styles.coverageDot,
+                  { backgroundColor: coverage.isDeliverable ? '#16A34A' : '#F59E0B' },
+                ]}
+              />
             </View>
-          </View>
+            <View style={styles.deliverToAddressRow}>
+              <Text style={styles.deliverToAddressText} numberOfLines={1}>
+                {getDisplayAddress()}
+              </Text>
+              <ChevronDown size={14} color="#2563EB" strokeWidth={2.5} style={{ marginLeft: 3 }} />
+            </View>
+          </TouchableOpacity>
 
+          {/* Right: Notifications */}
           <TouchableOpacity
             onPress={() => {
               Haptics.selectionAsync();
@@ -486,341 +745,398 @@ export function HomeScreen({
             <View style={styles.profileDot} />
           </TouchableOpacity>
         </View>
-
         {/* Hero Carousel Section */}
         <View style={styles.heroSection}>
-          <ScrollView
-            ref={carouselRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            decelerationRate="fast"
-            snapToInterval={SNAP_INTERVAL}
-            snapToAlignment="start"
-            contentContainerStyle={styles.heroScrollContainer}
-            onScrollBeginDrag={() => {
-              isUserTouchingRef.current = true;
-            }}
-            onScrollEndDrag={() => {
-              setTimeout(() => {
-                isUserTouchingRef.current = false;
-              }, 4000);
-            }}
-            onMomentumScrollEnd={onHeroScroll}
-            style={styles.heroScrollView}
-          >
-            {HERO_SLIDES.map((slide) => (
-              <TouchableOpacity
-                key={slide.id}
-                onPress={() => handleHeroSlidePress(slide)}
-                activeOpacity={0.92}
-                style={styles.heroSlide}
-                accessibilityRole="button"
-                accessibilityLabel={`${slide.title} - ${slide.subtitle}`}
-              >
-                {/* Left Content Area */}
-                <View style={styles.heroLeft}>
-                  <View style={[styles.heroBadgePill, { backgroundColor: slide.themePillBg }]}>
-                    <Text style={[styles.heroBadgePillText, { color: slide.themePillText }]}>
-                      {isTamil ? slide.badgeTa : slide.badge}
+            <ScrollView
+              ref={carouselRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              decelerationRate="fast"
+              snapToInterval={SNAP_INTERVAL}
+              snapToAlignment="start"
+              contentContainerStyle={styles.heroScrollContainer}
+              onScrollBeginDrag={() => {
+                isUserTouchingRef.current = true;
+              }}
+              onScrollEndDrag={() => {
+                setTimeout(() => {
+                  isUserTouchingRef.current = false;
+                }, 4000);
+              }}
+              onMomentumScrollEnd={onHeroScroll}
+              style={styles.heroScrollView}
+            >
+              {HERO_SLIDES.map((slide) => (
+                <TouchableOpacity
+                  key={slide.id}
+                  onPress={() => handleHeroSlidePress(slide)}
+                  activeOpacity={0.92}
+                  style={styles.heroSlide}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${slide.title} - ${slide.subtitle}`}
+                >
+                  {/* Left Content Area */}
+                  <View style={styles.heroLeft}>
+                    <View style={[styles.heroBadgePill, { backgroundColor: slide.themePillBg }]}>
+                      <Text style={[styles.heroBadgePillText, { color: slide.themePillText }]}>
+                        {isTamil ? slide.badgeTa : slide.badge}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.heroTitle} numberOfLines={1}>
+                      {isTamil ? slide.titleTa : slide.title}
                     </Text>
-                  </View>
 
-                  <Text style={styles.heroTitle} numberOfLines={1}>
-                    {isTamil ? slide.titleTa : slide.title}
-                  </Text>
-
-                  <Text style={[styles.heroSubHeading, { color: slide.accentColor }]} numberOfLines={1}>
-                    {isTamil ? slide.subtitleTa : slide.subtitle}
-                  </Text>
-
-                  <Text style={styles.heroDesc} numberOfLines={2}>
-                    {isTamil ? slide.descTa : slide.desc}
-                  </Text>
-
-                  <View style={[styles.heroCta, { backgroundColor: slide.accentColor }]}>
-                    <Text style={styles.heroCtaText}>
-                      {isTamil ? slide.ctaTa : slide.cta}
+                    <Text style={[styles.heroSubHeading, { color: slide.accentColor }]} numberOfLines={1}>
+                      {isTamil ? slide.subtitleTa : slide.subtitle}
                     </Text>
-                    <View style={styles.heroCtaIcon}>
-                      <ArrowRight size={12} color={slide.accentColor} strokeWidth={2.8} />
+
+                    <Text style={styles.heroDesc} numberOfLines={2}>
+                      {isTamil ? slide.descTa : slide.desc}
+                    </Text>
+
+                    <View style={[styles.heroCta, { backgroundColor: slide.accentColor }]}>
+                      <Text style={styles.heroCtaText}>
+                        {isTamil ? slide.ctaTa : slide.cta}
+                      </Text>
+                      <View style={styles.heroCtaIcon}>
+                        <ArrowRight size={12} color={slide.accentColor} strokeWidth={2.8} />
+                      </View>
                     </View>
                   </View>
-                </View>
 
-                {/* Right Image / Showcase Area */}
-                <View style={styles.heroRight}>
-                  <View style={styles.heroImageContainer}>
-                    <Image
-                      source={{
-                        uri: proxyImageUrl(
-                          failedImages[slide.id]
-                            ? 'https://www.ashokrajgroups.com/images/Restaurant/hero-image.JPG'
-                            : slide.image
-                        ),
-                      }}
-                      style={styles.heroImage}
-                      resizeMode="cover"
-                      onError={() => {
-                        setFailedImages((prev) => ({ ...prev, [slide.id]: true }));
-                      }}
-                    />
-                    {/* Floating Trust / Highlight Tag */}
-                    <View style={styles.heroImagePill}>
-                      <Text style={styles.heroImagePillValue}>{slide.trustedValue}</Text>
-                      <Text style={styles.heroImagePillSub}>{slide.trustedSub}</Text>
+                  {/* Right Image / Showcase Area */}
+                  <View style={styles.heroRight}>
+                    <View style={styles.heroImageContainer}>
+                      <Image
+                        source={{
+                          uri: proxyImageUrl(
+                            failedImages[slide.id]
+                              ? 'https://www.ashokrajgroups.com/images/Restaurant/hero-image.JPG'
+                              : slide.image
+                          ),
+                        }}
+                        style={styles.heroImage}
+                        resizeMode="cover"
+                        onError={() => {
+                          setFailedImages((prev) => ({ ...prev, [slide.id]: true }));
+                        }}
+                      />
+                      {/* Floating Trust / Highlight Tag */}
+                      <View style={styles.heroImagePill}>
+                        <Text style={styles.heroImagePillValue}>{slide.trustedValue}</Text>
+                        <Text style={styles.heroImagePillSub}>{slide.trustedSub}</Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
-          {/* Carousel Dots */}
-          <View style={styles.dots}>
-            {HERO_SLIDES.map((slide, index) => (
-              <TouchableOpacity
-                key={slide.id}
-                onPress={() => goToSlide(index)}
-                activeOpacity={0.7}
-                style={[styles.dot, index === carouselIndex && styles.dotActive]}
-              />
-            ))}
+            {/* Carousel Dots */}
+            <View style={styles.dots}>
+              {HERO_SLIDES.map((slide, index) => (
+                <TouchableOpacity
+                  key={slide.id}
+                  onPress={() => goToSlide(index)}
+                  activeOpacity={0.7}
+                  style={[styles.dot, index === carouselIndex && styles.dotActive]}
+                />
+              ))}
+            </View>
           </View>
-        </View>
 
         {/* Our Services Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{isTamil ? 'எங்கள் சேவைகள்' : 'Our Services'}</Text>
-            {/* <TouchableOpacity onPress={() => onNavigateToRestaurant()} style={styles.viewAll} activeOpacity={0.7}>
-              <Text style={styles.viewAllText}>{isTamil ? 'அனைத்தும்' : 'View all'}</Text>
-              <ArrowRight size={16} color="#2563EB" />
-            </TouchableOpacity> */}
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serviceRow}>
-            {services.map((service) => {
-              const Icon = service.icon;
-              return (
-                <TouchableOpacity key={service.title} onPress={service.onPress} activeOpacity={0.84} style={styles.serviceCard}>
-                  <View style={[styles.serviceIcon, { backgroundColor: service.tint }]}>
-                    <Icon size={23} color={service.iconColor} strokeWidth={2} />
-                  </View>
-                  <Text style={styles.serviceName} numberOfLines={1}>{service.title}</Text>
-                  <Text style={styles.serviceDesc} numberOfLines={2}>{service.desc}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Exclusive Offers Banner */}
-        {/* <View style={styles.offerOuter}>
-          <GlassCard style={styles.offerCard} contentStyle={styles.offerCardContent} blueTint>
-            <View style={styles.offerIcon}>
-              <Award size={22} color="#2563EB" />
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{isTamil ? 'எங்கள் சேவைகள்' : 'Our Services'}</Text>
             </View>
-            <View style={styles.offerCopy}>
-              <Text style={styles.offerTitle}>{isTamil ? 'சிறப்பு சலுகைகள்' : 'Exclusive Offers'}</Text>
-              <Text style={styles.offerSubtitle} numberOfLines={2}>
-                {isTamil ? 'அனைத்து சேவைகளுக்கும் சிறப்பு தள்ளுபடிகள்' : 'Enjoy exciting offers & discounts across all services'}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={onNavigateToOffers} style={styles.offerButton} activeOpacity={0.8}>
-              <Text style={styles.offerButtonText}>{isTamil ? 'பார்க்க' : 'View'}</Text>
-              <ArrowRight size={13} color="#2563EB" />
-            </TouchableOpacity>
-          </GlassCard>
-        </View> */}
-
-        {/* Popular Today Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{isTamil ? 'இன்றைய ஸ்பெஷல்' : 'Popular today'}</Text>
-            <TouchableOpacity onPress={() => onNavigateToRestaurant()} style={styles.viewAll} activeOpacity={0.7}>
-              <Text style={styles.viewAllText}>{isTamil ? 'அனைத்தும்' : 'View all'}</Text>
-              <ArrowRight size={16} color="#2563EB" />
-            </TouchableOpacity>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serviceRow}>
+              {services.map((service) => {
+                const Icon = service.icon;
+                return (
+                  <TouchableOpacity
+                    key={service.title}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      service.onPress();
+                    }}
+                    activeOpacity={0.84}
+                    style={styles.serviceCard}
+                  >
+                    <View style={[styles.serviceIcon, { backgroundColor: service.tint }]}>
+                      <Icon size={23} color={service.iconColor} strokeWidth={2} />
+                    </View>
+                    <Text style={styles.serviceName} numberOfLines={1}>{service.title}</Text>
+                    <Text style={styles.serviceDesc} numberOfLines={2}>{service.desc}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularRow}>
-            {popularFoods.map((item) => (
-              <FoodCard
-                key={item.id}
-                id={item.id}
-                name={item.name}
-                nameTa={item.nameTa}
-                description={item.description}
-                price={item.price}
-                isVeg={Boolean(item.isVeg ?? item.isVegetarian)}
-                isSpicy={item.isSpicy}
-                imageUrl={item.imageUrl}
-                onPress={() => onFoodPress(item.id)}
-                onAddToCart={() => onAddFoodToCart(item.id)}
-                cartQuantity={cartQuantityFor(item.id)}
-              />
-            ))}
-            {featuredRooms.map((room) => (
-              <RoomCard
-                key={room.id}
-                id={room.id}
-                name={room.name}
-                nameTa={room.nameTa}
-                roomType={room.roomType}
-                pricePerNight={room.pricePerNight}
-                capacity={room.capacity}
-                amenities={room.amenities}
-                imageUrl={room.imageUrl}
-                isAvailable={room.isAvailable}
-                compact
-                onPress={() => onRoomPress(room.id)}
-              />
-            ))}
-          </ScrollView>
-        </View>
+
+
+        {/* Popular / Filtered Dishes Section */}
+        {filteredFoods.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Sparkles size={18} color="#2563EB" />
+                <Text style={styles.sectionTitle}>
+                  {selectedCategory === 'BAKERY'
+                    ? isTamil ? 'பேக்கரி & இனிப்புகள்' : 'Bakery & Sweets'
+                    : selectedCategory === 'VEG'
+                    ? isTamil ? 'தூய சைவ உணவுகள்' : 'Pure Veg Specialties'
+                    : isTamil ? 'இன்றைய ஸ்பெஷல் உணவுகள்' : 'Popular Dishes Today'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  if (selectedCategory === 'BAKERY') onNavigateToRestaurant('bakery');
+                  else if (selectedCategory === 'VEG') onNavigateToRestaurant('veg');
+                  else onNavigateToRestaurant('restaurant');
+                }}
+                style={styles.viewAll}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewAllText}>{isTamil ? 'முழு மெனு' : 'View full menu'}</Text>
+                <ArrowRight size={15} color="#2563EB" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularRow}>
+              {filteredFoods.map((item) => (
+                <FoodCard
+                  key={item.id}
+                  id={item.id}
+                  name={item.name}
+                  nameTa={item.nameTa}
+                  description={item.description}
+                  price={Number(item.price)}
+                  isVeg={Boolean(item.isVeg ?? item.isVegetarian)}
+                  isSpicy={item.isSpicy}
+                  imageUrl={item.imageUrl}
+                  onPress={() => onFoodPress(item.id)}
+                  onAddToCart={() => onAddFoodToCart(item.id)}
+                  cartQuantity={cartQuantityFor(item.id)}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Featured Lodge Rooms Section */}
+        {filteredRooms.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Hotel size={18} color="#7C3AED" />
+                <Text style={styles.sectionTitle}>
+                  {isTamil ? 'லாட்ஜ் அறைகள்' : 'Rooms & Suites'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  onNavigateToLodge();
+                }}
+                style={styles.viewAll}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewAllText}>{isTamil ? 'அனைத்து அறைகள்' : 'View all rooms'}</Text>
+                <ArrowRight size={15} color="#2563EB" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularRow}>
+              {filteredRooms.map((room) => {
+                const roomTitle = room.name || (room as any).title;
+                const roomTitleTa = room.nameTa || (room as any).titleTa;
+                const roomPrice = Number(room.pricePerNight || (room as any).basePrice || (room as any).price || 1200);
+                const roomImg = (room as any).imageUrl || room.images?.[0] || 'https://www.ashokrajgroups.com/images/Lodge/double-bed-ac.webp';
+
+                return (
+                  <RoomCard
+                    key={room.id}
+                    id={room.id}
+                    name={roomTitle}
+                    title={roomTitle}
+                    nameTa={roomTitleTa}
+                    titleTa={roomTitleTa}
+                    description={room.description}
+                    pricePerNight={roomPrice}
+                    basePrice={roomPrice}
+                    maxOccupancy={room.maxOccupancy || (room as any).capacity || 2}
+                    amenities={room.amenities}
+                    imageUrl={roomImg}
+                    isAvailable={true}
+                    compact
+                    onPress={() => onRoomPress(room.id)}
+                  />
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Empty State for Search or Filter */}
+        {filteredFoods.length === 0 && filteredRooms.length === 0 && (
+          <View style={{ paddingHorizontal: 16, marginVertical: 16 }}>
+            <EmptyState
+              title={
+                searchQuery.trim().length > 0
+                  ? isTamil ? `"${searchQuery}" க்கான முடிவுகள் இல்லை` : `No matches for "${searchQuery}"`
+                  : isTamil ? 'பொருட்கள் எதுவும் கிடைக்கவில்லை' : 'No items found in this category'
+              }
+              description={
+                searchQuery.trim().length > 0
+                  ? isTamil
+                    ? 'வேறு உணவுகள், பேக்கரி அல்லது அறைகளைத் தேடவும் அல்லது முழு உணவக மெனுவைப் பார்க்கவும்.'
+                    : 'Try searching for Biryani, Dosa, Parotta, or explore our full restaurant menu.'
+                  : isTamil
+                  ? 'மற்ற சேவைகளைத் தேர்ந்தெடுக்கவும்.'
+                  : 'Try selecting another service category above.'
+              }
+              actionTitle={isTamil ? 'உணவக மெனு பார்க்க' : 'Browse Restaurant Menu'}
+              onActionPress={() => {
+                setSearchQuery('');
+                setSelectedCategory('ALL');
+                onNavigateToRestaurant('restaurant');
+              }}
+            />
+          </View>
+        )}
 
         {/* Recent Activity Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{isTamil ? 'சமீபத்திய நடவடிக்கை' : 'Your recent activity'}</Text>
-            <TouchableOpacity onPress={onNavigateToOrders} style={styles.viewAll} activeOpacity={0.7}>
-              <Text style={styles.viewAllText}>{isTamil ? 'அனைத்தும்' : 'View all'}</Text>
-              <ArrowRight size={16} color="#2563EB" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Activity Filter Chips */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.activityFilterScroll}
-          >
-            {[
-              { key: 'ALL', label: isTamil ? 'அனைத்தும்' : 'All Activities' },
-              { key: 'ORDERS', label: isTamil ? 'உணவு ஆர்டர்' : 'Food Orders' },
-              { key: 'LODGE', label: isTamil ? 'லாட்ஜ் தங்குமிடம்' : 'Lodge Stay' },
-              { key: 'MINI_HALL', label: isTamil ? 'மினி ஹால்' : 'Mini Hall' },
-            ].map((f) => (
-              <TouchableOpacity
-                key={f.key}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setActivityFilter(f.key as any);
-                }}
-                style={[
-                  styles.activityFilterChip,
-                  activityFilter === f.key && styles.activityFilterChipActive,
-                ]}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.activityFilterText,
-                    activityFilter === f.key && styles.activityFilterTextActive,
-                  ]}
-                >
-                  {f.label}
-                </Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{isTamil ? 'சமீபத்திய நடவடிக்கை' : 'Your recent activity'}</Text>
+              <TouchableOpacity onPress={onNavigateToOrders} style={styles.viewAll} activeOpacity={0.7}>
+                <Text style={styles.viewAllText}>{isTamil ? 'அனைத்தும்' : 'View all'}</Text>
+                <ArrowRight size={16} color="#2563EB" />
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            </View>
 
-          {/* Activities List */}
-          <View style={styles.activityList}>
-            {/* 1. Real Food Order Activity */}
-            {latestOrder && (activityFilter === 'ALL' || activityFilter === 'ORDERS') && (
-              <TouchableOpacity
-                onPress={onNavigateToOrders}
-                activeOpacity={0.85}
-                style={styles.activityCard}
-              >
-                <View style={[styles.activityIcon, { backgroundColor: '#EFF6FF' }]}>
-                  <ShoppingBag size={21} color="#2563EB" />
-                </View>
-                <View style={styles.activityBody}>
-                  <Text style={styles.activityTitle}>{orderNumberStr}</Text>
-                  <Text style={styles.activityDescription} numberOfLines={1}>
-                    {orderItemCount} {isTamil ? 'பொருட்கள்' : 'Items'} • {orderTypeStr}
-                  </Text>
-                  <Text style={styles.activityDate}>{getEstimatedTimeStr()}</Text>
-                </View>
-                <View style={styles.activityRight}>
-                  <View style={[styles.statusPill, { backgroundColor: statusInfo.bg }]}>
-                    <Text style={[styles.statusText, { color: statusInfo.text }]}>
-                      {statusInfo.label}
-                    </Text>
-                  </View>
-                  <ChevronRight size={16} color="#475569" />
-                </View>
-              </TouchableOpacity>
-            )}
-
-            {/* 2. Real Lodge Stay Activity */}
-            {data?.activeBooking && (activityFilter === 'ALL' || activityFilter === 'LODGE') && (
-              <TouchableOpacity
-                onPress={() => (onNavigateToBookings ? onNavigateToBookings() : onNavigateToLodge())}
-                activeOpacity={0.85}
-                style={styles.activityCard}
-              >
-                <View style={[styles.activityIcon, { backgroundColor: '#EEF2FF' }]}>
-                  <Hotel size={21} color="#4F46E5" />
-                </View>
-                <View style={styles.activityBody}>
-                  <Text style={styles.activityTitle}>
-                    {isTamil
-                      ? `லாட்ஜ் தங்குமிடம் #${data.activeBooking.bookingNumber}`
-                      : `Lodge Stay #${data.activeBooking.bookingNumber}`}
-                  </Text>
-                  <Text style={styles.activityDescription} numberOfLines={1}>
-                    {isTamil
-                      ? `அறை ${data.activeBooking.roomNumber} • ${data.activeBooking.roomTypeTitleTa || data.activeBooking.roomTypeTitle}`
-                      : `Room ${data.activeBooking.roomNumber} • ${data.activeBooking.roomTypeTitle}`}
-                  </Text>
-                  <Text style={styles.activityDate}>
-                    {data.activeBooking.checkInDate
-                      ? new Date(data.activeBooking.checkInDate).toLocaleDateString()
-                      : ''}
-                  </Text>
-                </View>
-                <View style={styles.activityRight}>
-                  <View style={[styles.statusPill, { backgroundColor: '#DCFCE7' }]}>
-                    <Text style={[styles.statusText, { color: '#15803D' }]}>
-                      {data.activeBooking.status}
-                    </Text>
-                  </View>
-                  <ChevronRight size={16} color="#475569" />
-                </View>
-              </TouchableOpacity>
-            )}
-
-            {/* Empty activities state */}
-            {!((latestOrder && (activityFilter === 'ALL' || activityFilter === 'ORDERS')) ||
-              (data?.activeBooking && (activityFilter === 'ALL' || activityFilter === 'LODGE'))) && (
-              <View
-                style={[
-                  styles.activityCard,
-                  {
-                    justifyContent: 'center',
-                    paddingVertical: 18,
-                    backgroundColor: '#F8FAFC',
-                    borderStyle: 'dashed',
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: '#64748B',
-                    fontSize: 12,
-                    fontWeight: '600',
-                    textAlign: 'center',
+            {/* Activity Filter Chips */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.activityFilterScroll}
+            >
+              {[
+                { key: 'ALL', label: isTamil ? 'அனைத்தும்' : 'All Activities' },
+                { key: 'ORDERS', label: isTamil ? 'உணவு ஆர்டர்' : 'Food Orders' },
+                { key: 'LODGE', label: isTamil ? 'லாட்ஜ் தங்குமிடம்' : 'Lodge Stay' },
+                { key: 'MINI_HALL', label: isTamil ? 'மினி ஹால்' : 'Mini Hall' },
+              ].map((f) => (
+                <TouchableOpacity
+                  key={f.key}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setActivityFilter(f.key as any);
                   }}
+                  style={[
+                    styles.activityFilterChip,
+                    activityFilter === f.key && styles.activityFilterChipActive,
+                  ]}
+                  activeOpacity={0.7}
                 >
-                  {isTamil
-                    ? 'செயலில் உள்ள நடவடிக்கைகள் எதுவும் இல்லை'
-                    : 'No active orders or reservations yet'}
-                </Text>
-              </View>
-            )}
+                  <Text
+                    style={[
+                      styles.activityFilterText,
+                      activityFilter === f.key && styles.activityFilterTextActive,
+                    ]}
+                  >
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Activities List */}
+            <View style={styles.activityList}>
+              {/* 1. Real Food Order Activity */}
+              {latestOrder && (activityFilter === 'ALL' || activityFilter === 'ORDERS') && (
+                <TouchableOpacity
+                  onPress={onNavigateToOrders}
+                  activeOpacity={0.85}
+                  style={styles.activityCard}
+                >
+                  <View style={[styles.activityIcon, { backgroundColor: '#EFF6FF' }]}>
+                    <ShoppingBag size={21} color="#2563EB" />
+                  </View>
+                  <View style={styles.activityBody}>
+                    <Text style={styles.activityTitle}>{orderNumberStr}</Text>
+                    <Text style={styles.activityDescription} numberOfLines={1}>
+                      {orderItemCount} {isTamil ? 'பொருட்கள்' : 'Items'} • {orderTypeStr}
+                    </Text>
+                    <Text style={styles.activityDate}>{getEstimatedTimeStr()}</Text>
+                  </View>
+                  <View style={styles.activityRight}>
+                    <View style={[styles.statusPill, { backgroundColor: statusInfo.bg }]}>
+                      <Text style={[styles.statusText, { color: statusInfo.text }]}>
+                        {statusInfo.label}
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color="#475569" />
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* 2. Real Lodge Stay Activity */}
+              {data?.activeBooking && (activityFilter === 'ALL' || activityFilter === 'LODGE') && (
+                <TouchableOpacity
+                  onPress={() => (onNavigateToBookings ? onNavigateToBookings() : onNavigateToLodge())}
+                  activeOpacity={0.85}
+                  style={styles.activityCard}
+                >
+                  <View style={[styles.activityIcon, { backgroundColor: '#EEF2FF' }]}>
+                    <Hotel size={21} color="#4F46E5" />
+                  </View>
+                  <View style={styles.activityBody}>
+                    <Text style={styles.activityTitle}>
+                      {isTamil
+                        ? `லாட்ஜ் தங்குமிடம் #${data.activeBooking.bookingNumber}`
+                        : `Lodge Stay #${data.activeBooking.bookingNumber}`}
+                    </Text>
+                    <Text style={styles.activityDescription} numberOfLines={1}>
+                      {isTamil
+                        ? `அறை ${data.activeBooking.roomNumber} • ${data.activeBooking.roomTypeTitleTa || data.activeBooking.roomTypeTitle}`
+                        : `Room ${data.activeBooking.roomNumber} • ${data.activeBooking.roomTypeTitle}`}
+                    </Text>
+                    <Text style={styles.activityDate}>
+                      {data.activeBooking.checkInDate
+                        ? new Date(data.activeBooking.checkInDate).toLocaleDateString()
+                        : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.activityRight}>
+                    <View style={[styles.statusPill, { backgroundColor: '#DCFCE7' }]}>
+                      <Text style={[styles.statusText, { color: '#15803D' }]}>
+                        {data.activeBooking.status}
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color="#475569" />
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Empty activities state */}
+              {!((latestOrder && (activityFilter === 'ALL' || activityFilter === 'ORDERS')) ||
+                (data?.activeBooking && (activityFilter === 'ALL' || activityFilter === 'LODGE'))) && (
+                <View style={styles.emptyActivityCard}>
+                  <Text style={styles.emptyActivityText}>
+                    {isTamil
+                      ? 'செயலில் உள்ள ஆர்டர்கள் அல்லது தங்குமிடங்கள் எதுவும் இல்லை'
+                      : 'No active orders or reservations yet'}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
-        </View>
 
         {/* About AshokRaj Groups */}
         <View style={styles.aboutCardContainer}>
@@ -885,6 +1201,28 @@ export function HomeScreen({
         visible={aboutModalVisible}
         onClose={() => setAboutModalVisible(false)}
       />
+
+      {/* Branch Selection Modal */}
+      <BranchSelectionModal
+        visible={branchModalVisible}
+        onClose={() => setBranchModalVisible(false)}
+      />
+
+      {/* Location Selector Modal */}
+      <LocationSelectorModal
+        visible={locationModalVisible}
+        onClose={() => {
+          setLocationModalVisible(false);
+          setIsLocationMandatory(false);
+        }}
+        mandatory={isLocationMandatory}
+      />
+
+      {/* Interactive Home Page Onboarding Tour Modal */}
+      <HomePageTourModal
+        visible={isTourActive}
+        onFinishOrSkip={handleTourFinishOrSkip}
+      />
     </View>
   );
 }
@@ -897,64 +1235,99 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 112,
   },
-  header: {
-    height: 76,
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
     paddingHorizontal: Spacing.base,
+    paddingVertical: 8,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+  },
+  offlineText: {
+    fontSize: FontSize.xs,
+    color: '#92400E',
+    flex: 1,
+    fontWeight: '600',
+  },
+  offlineRetryBtn: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+  },
+  offlineRetryText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  header: {
+    minHeight: 76,
+    paddingHorizontal: Spacing.base,
+    paddingTop: 8,
+    paddingBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerSide: {
-    width: 44,
-    alignItems: 'flex-start',
-  },
-  logoBadge: {
+  locationButton: {
     width: 44,
     height: 44,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.90)',
+    borderRadius: 22,
+    backgroundColor: '#EFF6FF',
     borderWidth: 1.2,
-    borderColor: 'rgba(226, 232, 240, 0.95)',
+    borderColor: '#DBEAFE',
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
       web: {
-        boxShadow: '0 4px 14px rgba(15, 23, 42, 0.06)',
-        backdropFilter: 'blur(10px)',
+        boxShadow: '0 4px 12px rgba(37, 99, 235, 0.10)',
       },
       default: {
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
+        shadowColor: '#2563EB',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
         elevation: 2,
       },
     }),
   },
-  brandCenter: {
-    position: 'absolute',
-    left: 64,
-    right: 64,
+  deliverToCenter: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    top: 17,
+    paddingHorizontal: 10,
   },
-  brandTitle: {
-    color: '#0F172A',
-    fontSize: 17.5,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
-  greetingRow: {
+  deliverToLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+  },
+  deliverToHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  coverageDot: {
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 3.5,
+  },
+  deliverToAddressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    maxWidth: '96%',
     marginTop: 2,
   },
-  greetingText: {
-    color: '#1E293B',
-    fontSize: 13,
-    fontWeight: '700',
+  deliverToAddressText: {
+    color: '#0F172A',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.2,
   },
   profileButton: {
     width: 44,
@@ -991,8 +1364,58 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
   },
+  searchContainer: {
+    paddingHorizontal: Spacing.base,
+    marginBottom: 8,
+  },
+  categoryFilterRow: {
+    paddingHorizontal: Spacing.base,
+    paddingVertical: 6,
+    gap: 8,
+    marginBottom: Spacing.xs,
+  },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: Radius.full,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
+    borderColor: '#E2E8F0',
+  },
+  categoryChipActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  categoryChipText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  categoryChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  searchFeedbackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: 6,
+    marginBottom: 4,
+  },
+  searchFeedbackText: {
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  clearSearchText: {
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
   heroSection: {
     marginBottom: Spacing.lg,
+    marginTop: 4,
   },
   heroScrollView: {
     height: CAROUSEL_HEIGHT,
@@ -1129,7 +1552,6 @@ const styles = StyleSheet.create({
     fontSize: 8.5,
     fontWeight: '700',
   },
-
   dots: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1219,75 +1641,90 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   serviceDesc: {
-    color: '#334155',
+    color: '#64748B',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     textAlign: 'center',
     marginTop: 3,
   },
-  offerOuter: {
-    marginHorizontal: Spacing.base,
+  miniHallBannerContainer: {
+    paddingHorizontal: Spacing.base,
     marginBottom: Spacing.lg,
   },
-  offerCard: {
+  miniHallBanner: {
+    height: 170,
     borderRadius: 22,
-  },
-  offerCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-  },
-  offerIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#DBEAFE',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  offerCopy: {
-    flex: 1,
-    marginHorizontal: 12,
-  },
-  offerTitle: {
-    color: '#0F172A',
-    fontSize: 15.5,
-    fontWeight: '900',
-  },
-  offerSubtitle: {
-    color: '#1E293B',
-    fontSize: 12,
-    lineHeight: 16.5,
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  offerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.2,
-    borderColor: '#93C5FD',
-    borderRadius: Radius.full,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#0F172A',
     ...Platform.select({
       web: {
-        boxShadow: '0 2px 6px rgba(37, 99, 235, 0.08)',
+        boxShadow: '0 6px 20px rgba(15, 23, 42, 0.12)',
       },
       default: {
-        shadowColor: '#2563EB',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
-        elevation: 2,
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.12,
+        shadowRadius: 14,
+        elevation: 4,
       },
     }),
   },
-  offerButtonText: {
-    color: '#2563EB',
-    fontSize: 11.5,
+  miniHallBannerImage: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    opacity: 0.45,
+  },
+  miniHallOverlay: {
+    flex: 1,
+    padding: Spacing.md,
+    justifyContent: 'space-between',
+  },
+  miniHallBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(234, 88, 12, 0.9)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.sm,
+  },
+  miniHallBadgeText: {
+    fontSize: 10,
     fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  miniHallTitle: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  miniHallSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#E2E8F0',
+    maxWidth: '85%',
+  },
+  miniHallCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  miniHallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: Radius.full,
+  },
+  miniHallBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   popularRow: {
     paddingHorizontal: Spacing.base,
@@ -1387,6 +1824,23 @@ const styles = StyleSheet.create({
     color: '#15803D',
     fontSize: 9.5,
     fontWeight: '800',
+  },
+  emptyActivityCard: {
+    marginHorizontal: Spacing.base,
+    paddingVertical: 18,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyActivityText: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   aboutCardContainer: {
     marginHorizontal: Spacing.base,

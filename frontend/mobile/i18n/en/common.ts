@@ -33,10 +33,10 @@ export const common = {
   // Home Feed Sections
   popularFoods: 'Popular Foods',
   recommendedFoods: 'Recommended for You',
-  featuredRooms: 'Featured Rooms',
+  featuredRooms: 'Rooms & Suites',
   specialOffers: 'Offers & Discounts',
-  activeOrder: 'Current Active Order',
-  activeBooking: 'Current Active Stay',
+  activeOrder: 'Your Order',
+  activeBooking: 'Your Booking',
   loyaltyPoints: 'Loyalty Rewards',
   tierGold: 'Gold Tier',
   pointsCount: '{{points}} Points',

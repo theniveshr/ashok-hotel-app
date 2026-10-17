@@ -16,6 +16,7 @@ interface AddressState {
   setDefaultAddress: (id: string) => Promise<boolean>;
   selectAddress: (id: string) => void;
   getDefaultAddress: () => Address | null;
+  clearAddresses: () => void;
 }
 
 export const useAddressStore = create<AddressState>((set, get) => ({
@@ -88,6 +89,8 @@ export const useAddressStore = create<AddressState>((set, get) => ({
       city: data.city,
       state: data.state,
       pincode: data.pincode,
+      lat: (data as any).lat != null ? Number((data as any).lat) : null,
+      lng: (data as any).lng != null ? Number((data as any).lng) : null,
       isDefault: Boolean(data.isDefault),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -178,5 +181,14 @@ export const useAddressStore = create<AddressState>((set, get) => ({
   getDefaultAddress: (): Address | null => {
     const list = get().addresses;
     return list.find((a) => a.isDefault) || list[0] || null;
+  },
+
+  clearAddresses: () => {
+    set({
+      addresses: [],
+      selectedAddressId: null,
+      isLoading: false,
+      error: null,
+    });
   },
 }));
